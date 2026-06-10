@@ -9,9 +9,10 @@ file1 = "run_260608_cadence.csv"
 file2 = "run_Cadence_260610.csv"
 output_file = "garmin_analysis.xlsx"
 
+
 # === HELPERS ===
 def extract_date(filename):
-    match = re.search(r'(\d{6})', filename)
+    match = re.search(r"(\d{6})", filename)
     if match:
         d = match.group(1)
         return f"20{d[:2]}-{d[2:4]}-{d[4:]}"
@@ -83,10 +84,17 @@ for label, (col, lower_is_better) in metrics.items():
     pct = diff / r1.replace(0, pd.NA)  # ✅ FIXED (no *100)
 
     # Special handling for pace display
+
     if label == "Pace":
+        # Human-readable columns
         result[f"{label} {date1}"] = r1.apply(seconds_to_pace)
         result[f"{label} {date2}"] = r2.apply(seconds_to_pace)
         result[f"{label} Diff"] = diff.apply(seconds_to_pace)
+
+        # Numeric columns (for chart only)
+        result[f"{label} {date1} (sec)"] = r1
+        result[f"{label} {date2} (sec)"] = r2
+
     else:
         result[f"{label} {date1}"] = r1
         result[f"{label} {date2}"] = r2
@@ -102,29 +110,29 @@ for label, (col, lower_is_better) in metrics.items():
     result[f"{label} Score"] = score
 
 # === ANALYSIS (efficiency / fatigue) ===
-analysis = pd.DataFrame({
-    "Lap": df1["Laps"],
-    "Pace1_sec": df1["pace_sec"],
-    "HR1": df1["Avg HR bpm"],
-    "Pace2_sec": df2["pace_sec"],
-    "HR2": df2["Avg HR bpm"],
-})
+analysis = pd.DataFrame(
+    {
+        "Lap": df1["Laps"],
+        "Pace1_sec": df1["pace_sec"],
+        "HR1": df1["Avg HR bpm"],
+        "Pace2_sec": df2["pace_sec"],
+        "HR2": df2["Avg HR bpm"],
+    }
+)
 
 analysis["Efficiency1"] = analysis["HR1"] / analysis["Pace1_sec"]
 analysis["Efficiency2"] = analysis["HR2"] / analysis["Pace2_sec"]
 
 # === SUMMARY ===
-summary = pd.DataFrame({
-    "Metric": list(metrics.keys()),
-    "Avg % Change": [result[f"{m} %"].mean() for m in metrics],
-    "Avg Score": [result[f"{m} Score"].mean() for m in metrics]
-})
+summary = pd.DataFrame(
+    {
+        "Metric": list(metrics.keys()),
+        "Avg % Change": [result[f"{m} %"].mean() for m in metrics],
+        "Avg Score": [result[f"{m} Score"].mean() for m in metrics],
+    }
+)
 
-summary.loc[len(summary)] = [
-    "Overall Score",
-    "",
-    summary["Avg Score"].mean()
-]
+summary.loc[len(summary)] = ["Overall Score", "", summary["Avg Score"].mean()]
 
 # === WRITE TO EXCEL ===
 with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
@@ -176,14 +184,23 @@ for col in ws2.iter_cols(min_row=2):
                 cell.number_format = "0.00"
 
 # === ADD CHART ===
-chart = LineChart()
-chart.title = "Pace Comparison"
 
-data = Reference(ws, min_col=2, max_col=3, min_row=1, max_row=min_len + 1)
+# Find numeric pace columns
+headers = [cell.value for cell in ws[1]]
+
+col1 = headers.index(f"Pace {date1} (sec)") + 1
+col2 = headers.index(f"Pace {date2} (sec)") + 1
+
+
+chart = LineChart()
+chart.title = "Pace Comparison (sec)_"
+
+data = Reference(ws, min_col=col1, max_col=col2, min_row=1, max_row=min_len + 1)
 cats = Reference(ws, min_col=1, min_row=2, max_row=min_len + 1)
 
 chart.add_data(data, titles_from_data=True)
 chart.set_categories(cats)
+
 
 ws.add_chart(chart, "Z2")
 
