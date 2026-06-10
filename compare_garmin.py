@@ -24,7 +24,7 @@ def load_file(path):
     # Remove summary row
     df = df[df["Laps"] != "Summary"]
 
-    # Remove tiny final lap (<0.5 km)
+    # Remove tiny laps (<0.5 km)
     df = df[df["Distance km"] >= 0.5]
 
     return df.reset_index(drop=True)
@@ -33,6 +33,14 @@ def load_file(path):
 def pace_to_seconds(p):
     m, s = p.split(":")
     return int(m) * 60 + float(s)
+
+
+def seconds_to_pace(sec):
+    if pd.isna(sec):
+        return ""
+    m = int(sec // 60)
+    s = int(round(sec % 60))
+    return f"{m}:{s:02d}"
 
 
 # === LOAD ===
@@ -47,7 +55,7 @@ min_len = min(len(df1), len(df2))
 df1 = df1.iloc[:min_len]
 df2 = df2.iloc[:min_len]
 
-# Convert pace
+# Convert pace to seconds
 df1["pace_sec"] = df1["Avg Pace min/km"].apply(pace_to_seconds)
 df2["pace_sec"] = df2["Avg Pace min/km"].apply(pace_to_seconds)
 
@@ -71,11 +79,18 @@ for label, (col, lower_is_better) in metrics.items():
     r1 = df1[col].astype(float)
     r2 = df2[col].astype(float)
 
-    result[f"{label} {date1}"] = r1
-    result[f"{label} {date2}"] = r2
-
     diff = r2 - r1
-    pct = diff / r1
+    pct = diff / r1.replace(0, pd.NA)  # ✅ FIXED (no *100)
+
+    # Special handling for pace display
+    if label == "Pace":
+        result[f"{label} {date1}"] = r1.apply(seconds_to_pace)
+        result[f"{label} {date2}"] = r2.apply(seconds_to_pace)
+        result[f"{label} Diff"] = diff.apply(seconds_to_pace)
+    else:
+        result[f"{label} {date1}"] = r1
+        result[f"{label} {date2}"] = r2
+        result[f"{label} Diff"] = diff
 
     # Improvement score
     if lower_is_better:
@@ -83,21 +98,20 @@ for label, (col, lower_is_better) in metrics.items():
     else:
         score = pct
 
-    result[f"{label} Diff"] = diff
     result[f"{label} %"] = pct
     result[f"{label} Score"] = score
 
-# === FATIGUE / EFFICIENCY ANALYSIS ===
+# === ANALYSIS (efficiency / fatigue) ===
 analysis = pd.DataFrame({
     "Lap": df1["Laps"],
-    "Pace1": df1["pace_sec"],
+    "Pace1_sec": df1["pace_sec"],
     "HR1": df1["Avg HR bpm"],
-    "Pace2": df2["pace_sec"],
+    "Pace2_sec": df2["pace_sec"],
     "HR2": df2["Avg HR bpm"],
 })
 
-analysis["Efficiency1"] = analysis["HR1"] / analysis["Pace1"]
-analysis["Efficiency2"] = analysis["HR2"] / analysis["Pace2"]
+analysis["Efficiency1"] = analysis["HR1"] / analysis["Pace1_sec"]
+analysis["Efficiency2"] = analysis["HR2"] / analysis["Pace2_sec"]
 
 # === SUMMARY ===
 summary = pd.DataFrame({
@@ -131,13 +145,17 @@ for col in ws.iter_cols(min_row=2):
     for cell in col:
         if isinstance(cell.value, (int, float)):
 
-            # Format numbers
+            # Skip pace display columns (they are strings)
+            if "Pace" in str(header) and "%" not in str(header):
+                continue
+
+            # Number formatting
             if "%" in str(header):
                 cell.number_format = "0.00%"
             else:
                 cell.number_format = "0.00"
 
-            # Colour only % columns
+            # Colour coding for % columns
             if "%" in str(header):
                 if cell.value > 0:
                     cell.fill = green
@@ -161,8 +179,8 @@ for col in ws2.iter_cols(min_row=2):
 chart = LineChart()
 chart.title = "Pace Comparison"
 
-data = Reference(ws, min_col=2, max_col=3, min_row=1, max_row=min_len+1)
-cats = Reference(ws, min_col=1, min_row=2, max_row=min_len+1)
+data = Reference(ws, min_col=2, max_col=3, min_row=1, max_row=min_len + 1)
+cats = Reference(ws, min_col=1, min_row=2, max_row=min_len + 1)
 
 chart.add_data(data, titles_from_data=True)
 chart.set_categories(cats)
@@ -173,4 +191,3 @@ ws.add_chart(chart, "Z2")
 wb.save(output_file)
 
 print(f"✅ Analysis complete: {output_file}")
-
