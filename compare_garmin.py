@@ -12,6 +12,18 @@ output_file = "garmin_analysis.xlsx"
 
 # === HELPERS ===
 def extract_date(filename):
+    """Extract a run date from a filename.
+
+    The filename is expected to contain a 6-digit date in the form YYMMDD.
+    If found, this returns a normalized date string in ISO format YYYY-MM-DD.
+    Otherwise, it returns "Unknown".
+
+    Args:
+        filename (str): The input filename to parse.
+
+    Returns:
+        str: The extracted date string or "Unknown".
+    """
     match = re.search(r"(\d{6})", filename)
     if match:
         d = match.group(1)
@@ -20,6 +32,17 @@ def extract_date(filename):
 
 
 def load_file(path):
+    """Load a Garmin CSV file and clean lap rows.
+
+    This function reads the CSV into a DataFrame, drops the summary row,
+    removes laps shorter than 0.5 kilometers, and resets the index.
+
+    Args:
+        path (str): Path to the CSV file.
+
+    Returns:
+        pandas.DataFrame: Cleaned lap-level data.
+    """
     df = pd.read_csv(path)
 
     # Remove summary row
@@ -32,11 +55,32 @@ def load_file(path):
 
 
 def pace_to_seconds(p):
+    """Convert a pace string to total seconds.
+
+    The expected input format is "M:SS" where M is minutes and SS is seconds.
+
+    Args:
+        p (str): Pace string in minutes and seconds.
+
+    Returns:
+        float: Total pace duration in seconds.
+    """
     m, s = p.split(":")
     return int(m) * 60 + float(s)
 
 
 def seconds_to_pace(sec):
+    """Convert a seconds value to a pace string.
+
+    If the input is missing or NaN, this returns an empty string.
+    Otherwise it formats the value as "M:SS".
+
+    Args:
+        sec (float | int): Time in seconds.
+
+    Returns:
+        str: Formatted pace string or empty string for missing values.
+    """
     if pd.isna(sec):
         return ""
     m = int(sec // 60)
