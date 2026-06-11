@@ -95,12 +95,9 @@ def seconds_to_pace(sec):
     return f"{m}:{s:02d}"
 
 
-def main(reference_run_file=reference_run_file, current_run_file=current_run_file):
+def compare_garmin_data(df1, df2, reference_run_file=reference_run_file, current_run_file=current_run_file):
+    """Compare two loaded Garmin dataframes and export the analysis to Excel."""
     output_file = get_output_filename(output_file_base)
-
-    # === LOAD ===
-    df1 = load_file(reference_run_file)
-    df2 = load_file(current_run_file)
 
     date1 = extract_date(reference_run_file)
     date2 = extract_date(current_run_file)
@@ -135,16 +132,12 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
         r2 = df2[col].astype(float)
 
         diff = r2 - r1
-        pct = diff / r1.replace(0, pd.NA)  # ✅ FIXED (no *100)
+        pct = diff / r1.replace(0, pd.NA)
 
-        # Special handling for pace display
         if label == "Pace":
-            # Human-readable columns
             result[f"{label} {date1}"] = r1.apply(seconds_to_pace)
             result[f"{label} {date2}"] = r2.apply(seconds_to_pace)
             result[f"{label} Diff"] = diff.apply(seconds_to_pace)
-
-            # Numeric columns (for chart only)
             result[f"{label} {date1} (sec)"] = r1
             result[f"{label} {date2} (sec)"] = r2
         else:
@@ -152,16 +145,10 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
             result[f"{label} {date2}"] = r2
             result[f"{label} Diff"] = diff
 
-        # Improvement score
-        if lower_is_better:
-            score = -pct
-        else:
-            score = pct
-
+        score = -pct if lower_is_better else pct
         result[f"{label} %"] = pct
         result[f"{label} Score"] = score
 
-    # === ANALYSIS (efficiency / fatigue) ===
     analysis = pd.DataFrame(
         {
             "Lap": df1["Laps"],
@@ -175,7 +162,6 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
     analysis["Efficiency1"] = analysis["HR1"] / analysis["Pace1_sec"]
     analysis["Efficiency2"] = analysis["HR2"] / analysis["Pace2_sec"]
 
-    # === SUMMARY ===
     summary = pd.DataFrame(
         {
             "Metric": list(metrics.keys()),
@@ -186,13 +172,11 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
 
     summary.loc[len(summary)] = ["Overall Score", "", summary["Avg Score"].mean()]
 
-    # === WRITE TO EXCEL ===
     with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
         result.to_excel(writer, sheet_name="Lap Comparison", index=False)
         summary.to_excel(writer, sheet_name="Summary", index=False)
         analysis.to_excel(writer, sheet_name="Analysis", index=False)
 
-    # === FORMAT EXCEL ===
     wb = load_workbook(output_file)
     ws = wb["Lap Comparison"]
 
@@ -204,25 +188,17 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
 
         for cell in col:
             if isinstance(cell.value, (int, float)):
-
-                # Skip pace display columns (they are strings)
                 if "Pace" in str(header) and "%" not in str(header):
                     continue
 
-                # Number formatting
                 if "%" in str(header):
                     cell.number_format = "0.00%"
                 else:
                     cell.number_format = "0.00"
 
-                # Colour coding for % columns
                 if "%" in str(header):
-                    if cell.value > 0:
-                        cell.fill = green
-                    else:
-                        cell.fill = red
+                    cell.fill = green if cell.value > 0 else red
 
-    # === FORMAT SUMMARY ===
     ws2 = wb["Summary"]
 
     for col in ws2.iter_cols(min_row=2):
@@ -230,14 +206,9 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
 
         for cell in col:
             if isinstance(cell.value, (int, float)):
-                if "%" in str(header):
-                    cell.number_format = "0.00%"
-                else:
-                    cell.number_format = "0.00"
+                cell.number_format = "0.00%" if "%" in str(header) else "0.00"
 
-    # === ADD CHART ===
     headers = [cell.value for cell in ws[1]]
-
     col1 = headers.index(f"Pace {date1} (sec)") + 1
     col2 = headers.index(f"Pace {date2} (sec)") + 1
 
@@ -249,13 +220,16 @@ def main(reference_run_file=reference_run_file, current_run_file=current_run_fil
 
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(cats)
-
     ws.add_chart(chart, "Z2")
 
-    # === SAVE ===
     wb.save(output_file)
-
     print(f"✅ Analysis complete: {output_file}")
+
+
+def main(reference_run_file=reference_run_file, current_run_file=current_run_file):
+    df1 = load_file(reference_run_file)
+    df2 = load_file(current_run_file)
+    return compare_garmin_data(df1, df2, reference_run_file, current_run_file)
 
 
 if __name__ == "__main__":
