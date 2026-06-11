@@ -5,8 +5,8 @@ from openpyxl.styles import PatternFill
 from openpyxl.chart import LineChart, Reference
 
 # === FILES ===
-file1 = "run_260608_cadence.csv"
-file2 = "run_Cadence_260610.csv"
+reference_run_file = "run_260608_cadence.csv"
+current_run_file = "run_Cadence_260610.csv"
 output_file = "garmin_analysis.xlsx"
 
 
@@ -45,11 +45,11 @@ def seconds_to_pace(sec):
 
 
 # === LOAD ===
-df1 = load_file(file1)
-df2 = load_file(file2)
+df1 = load_file( reference_run_file)
+df2 = load_file(current_run_file)
 
-date1 = extract_date(file1)
-date2 = extract_date(file2)
+date1 = extract_date( reference_run_file)
+date2 = extract_date(current_run_file)
 
 # Align lap count
 min_len = min(len(df1), len(df2))
