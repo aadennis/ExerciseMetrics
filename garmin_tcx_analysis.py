@@ -3,6 +3,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
+'''
+  get_pace: given a time and a distance covered, 
+  return the pace. Inputs are in seconds and metres,
+  return value is seconds per kilometer
+'''
+def get_pace_as_seconds(time_in_secs: float, distance_in_mtrs: float) -> float:
+    return round(time_in_secs * (1000/ distance_in_mtrs) , 2)
+
+def seconds_to_minutes(time_in_secs: float) -> str:
+    whole_minutes: int = int(time_in_secs / 60)
+    remaining_seconds: int = int(time_in_secs - (whole_minutes * 60))
+    return f"{whole_minutes}:{remaining_seconds:02d}"
+
 # --- Load TCX file ---
 file_path = "C:/temp/downloads/run_6kcad_260614.tcx"   # <- change to your filename
 file_name = os.path.basename(file_path)
@@ -117,7 +130,9 @@ for i, (_, seg) in enumerate(blocks, 1):
         "start_s": round(start_t, 1),
         "end_s": round(end_t, 1),
         "duration_s": round(duration, 1),
-        "distance_m": round(distance, 1)
+        "distance_m": round(distance, 1),
+        "pace secs/km": get_pace_as_seconds(duration, distance),
+        "pace mins/km": seconds_to_minutes(get_pace_as_seconds(duration, distance))
     })
 
 stride_df = pd.DataFrame(stride_results)
