@@ -1,10 +1,11 @@
 import xml.etree.ElementTree as ET
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 # --- Load TCX file ---
-file_path = "C:/temp/downloads/activity_23247479983.tcx.csv"   # <- change to your filename
-
+file_path = "C:/temp/downloads/run_6kcad_260614.tcx"   # <- change to your filename
+file_name = os.path.basename(file_path)
 
 
 start_offset = 1200        # seconds from start (e.g. 600)
@@ -24,6 +25,21 @@ NS_EXT = "http://www.garmin.com/xmlschemas/ActivityExtension/v2"
 # -----------------------------
 # EXTRACT DATA
 # -----------------------------
+activity = root.find(f".//{{{NS_TC}}}Activity")
+activity_id = activity.find(f"{{{NS_TC}}}Id") if activity is not None else None
+
+date_str = ""
+if activity_id is not None and activity_id.text is not None:
+    date = pd.to_datetime(activity_id.text)
+    date_str = date.strftime("%Y-%m-%d %H:%M")
+
+creator = root.find(f".//{{{NS_TC}}}Creator")
+device_name = "Unknown device"
+
+if creator is not None:
+    name_elem = creator.find(f"{{{NS_TC}}}Name")
+    if name_elem is not None:
+        device_name = name_elem.text
 rows = []
 
 for tp in root.iter(f"{{{NS_TC}}}Trackpoint"):
@@ -141,7 +157,17 @@ plt.axhline(threshold, linestyle="--", label=f"{threshold} min/km")
 plt.gca().invert_yaxis()
 plt.xlabel("Elapsed Time (seconds)")
 plt.ylabel("Pace (min/km)")
-plt.title(f"Pace Curve ({start_offset}s to {end_offset}s)")
+#plt.title(f"Pace Curve ({start_offset}s to {end_offset}s)")
+plt.title(f"{device_name} | {date_str}\nPace Curve ({start_offset} secs to {end_offset} secs)")
+
+
+plt.gca().text(
+  0.01, 0.01,
+  file_name,
+  transform=plt.gca().transAxes,
+  fontsize=9,
+  verticalalignment='bottom'
+)
 plt.legend()
 plt.tight_layout()
 
