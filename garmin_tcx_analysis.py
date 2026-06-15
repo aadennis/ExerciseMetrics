@@ -12,8 +12,7 @@ def get_pace_as_seconds(time_in_secs: float, distance_in_mtrs: float) -> float:
     return round(time_in_secs * (1000/ distance_in_mtrs) , 2)
 
 def seconds_to_minutes(time_in_secs: float) -> str:
-    whole_minutes: int = int(time_in_secs / 60)
-    remaining_seconds: int = int(time_in_secs - (whole_minutes * 60))
+    whole_minutes, remaining_seconds = divmod(int(time_in_secs), 60)
     return f"{whole_minutes}:{remaining_seconds:02d}"
 
 # --- Load TCX file ---
@@ -131,7 +130,6 @@ for i, (_, seg) in enumerate(blocks, 1):
         "end_s": round(end_t, 1),
         "duration_s": round(duration, 1),
         "distance_m": round(distance, 1),
-        "pace secs/km": get_pace_as_seconds(duration, distance),
         "pace mins/km": seconds_to_minutes(get_pace_as_seconds(duration, distance))
     })
 
