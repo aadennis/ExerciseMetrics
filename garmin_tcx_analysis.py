@@ -16,18 +16,26 @@ def seconds_to_minutes(time_in_secs: float) -> str:
     return f"{whole_minutes}:{remaining_seconds:02d}"
 
 # --- Load TCX file ---
-file_path = "C:/temp/downloads/run_6kcad_260614.tcx"   # <- change to your filename
+dir = r"D:\onedrive\Documents\_ActualDocuments\Exercise\Running\Garmin splits/tcx"
+file = "run_5kEmm_260616.tcx"
+file_path = f"{dir}/{file}"   # <- change to your filename
+print(file_path)
+
 file_name = os.path.basename(file_path)
 
 
 start_offset = 1200        # seconds from start (e.g. 600)
 end_offset = 1800      # seconds (e.g. 900) or None = full run
-
 threshold = 6.5         # min/km
 
 # -----------------------------
 # LOAD TCX
 # -----------------------------
+# if start_offset is None:
+#     start_offset = 0
+
+
+
 tree = ET.parse(file_path)
 root = tree.getroot()
 
