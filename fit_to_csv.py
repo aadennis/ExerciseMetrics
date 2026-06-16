@@ -4,35 +4,52 @@ import csv
 INPUT_FILE = "run_5kEmm_260616.fit"
 OUTPUT_FILE = "cadence_output.csv"
 
-# If data shows ~70–80 (probably being 'cadence PER LEG', set this to True to convert to steps/min
 DOUBLE_IF_STRIDE = True
 
 rows = []
 
 with fitdecode.FitReader(INPUT_FILE) as fit:
     for frame in fit:
-        if isinstance(frame, fitdecode.FitDataMessage):
-            if frame.name == "record":
-                timestamp = frame.get_value("timestamp")
-                cadence = frame.get_value("cadence")
-                pace = frame.get_value("speed")
-                heart_rate = frame.get_value("heart_rate")
+        if isinstance(frame, fitdecode.FitDataMessage) and frame.name == "record":
 
-                if cadence is not None:
-                    # Convert stride → steps if needed
-                    cadence_spm = cadence * 2 if DOUBLE_IF_STRIDE else cadence
+            data = {f.name: f.value for f in frame.fields}
 
-                    rows.append({
-                        "timestamp": timestamp,
-                        "cadence_raw": cadence,
-                        "cadence_spm": cadence_spm,
-                        "pace": pace,
-                        "heart_rate": heart_rate
-                    })
+            cadence = data.get("cadence")
+            frac = data.get("fractional_cadence", 0)
+            timestamp = data.get("timestamp")
 
-# Write CSV
+            if cadence is not None:
+                # Combine integer + fractional part
+                cadence_full = cadence + frac
+
+                # Convert to steps/min if needed
+                cadence_spm = cadence_full * 2 if DOUBLE_IF_STRIDE else cadence_full
+
+                rows.append({
+                    "timestamp": timestamp,
+                    "orig_cadence": cadence,
+                    "frac": frac,
+                    "cadence_raw": cadence_full,
+                    "cadence_spm": cadence_spm,
+                    "enhanced_speed": data.get("enhanced_speed"),
+                    "heart_rate": data.get("heart_rate"),
+                    "step_length": round((data.get("step_length") or 0) /1000.0,2),
+                })
+
 with open(OUTPUT_FILE, "w", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=["timestamp", "cadence_raw", "cadence_spm","pace","heart_rate"])
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "timestamp",
+            "orig_cadence",
+            "frac",
+            "cadence_raw",
+            "cadence_spm",
+            "enhanced_speed",
+            "heart_rate",
+            "step_length"
+        ]
+    )
     writer.writeheader()
     writer.writerows(rows)
 
