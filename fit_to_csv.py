@@ -24,6 +24,8 @@ with fitdecode.FitReader(INPUT_FILE) as fit:
 
                 # Convert to steps/min if needed
                 cadence_spm = cadence_full * 2 if DOUBLE_IF_STRIDE else cadence_full
+                step_length = data.get("step_length")
+                step_length = round(step_length / 1000.0,2) if step_length is not None else None
 
                 rows.append({
                     "timestamp": timestamp,
@@ -33,7 +35,7 @@ with fitdecode.FitReader(INPUT_FILE) as fit:
                     "cadence_spm": cadence_spm,
                     "enhanced_speed": data.get("enhanced_speed"),
                     "heart_rate": data.get("heart_rate"),
-                    "step_length": round((data.get("step_length") or 0) /1000.0,2),
+                    "step_length": step_length
                 })
 
 with open(OUTPUT_FILE, "w", newline="") as f:
