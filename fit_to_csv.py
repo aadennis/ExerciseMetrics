@@ -4,7 +4,7 @@ import csv
 INPUT_FILE = "run_5kEmm_260616.fit"
 OUTPUT_FILE = "cadence_output.csv"
 
-# If your data shows ~70–80, set this to True to convert to steps/min
+# If data shows ~70–80 (probably being 'cadence PER LEG', set this to True to convert to steps/min
 DOUBLE_IF_STRIDE = True
 
 rows = []
