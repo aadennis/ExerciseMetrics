@@ -5,7 +5,7 @@ RUN_FILE = "run_5kEmm_260616.fit"
 FIELDS = ["cadence", "heart_rate"]
 
 
-def extract_fields(frame, fields):
+def extract_fields(frame, fields) -> dict:
     return {f.name: f.value for f in frame.fields if f.name in fields}
 
 
