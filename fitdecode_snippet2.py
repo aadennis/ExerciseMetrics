@@ -1,19 +1,29 @@
 import fitdecode
 import csv
 
-RUN_FILE = "run_5kEmm_260616.fit"
-FIELDS = ["cadence", "heart_rate"]
+def extract_all_fields(frame) -> dict:
+    return {f.name: f.value for f in frame.fields}
 
+def main(fit_file):
+    rows = []
+    all_fields = set()
 
-def extract_fields(frame, fields) -> dict:
-    return {f.name: f.value for f in frame.fields if f.name in fields}
+    with fitdecode.FitReader(fit_file) as fit:
+        for frame in fit:
+            if isinstance(frame, fitdecode.FitDataMessage) and frame.name == "record":
+                data = extract_all_fields(frame)
+                rows.append(data)
+                all_fields.update(data.keys())
 
+    # Ensure consistent column order
+    all_fields = sorted(all_fields)
 
-rows = []
+    # Write to CSV
+    with open("output.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=all_fields)
+        writer.writeheader()
+        writer.writerows(rows)
 
-with fitdecode.FitReader(RUN_FILE) as fit:
-    for frame in fit:
-        if isinstance(frame, fitdecode.FitDataMessage) and frame.name == "record":
-            rows.append(extract_fields(frame, FIELDS))
-
-print("22")
+if __name__ == "__main__":
+    run_file = "run_5kEmm_260616.fit"
+    main(run_file)
