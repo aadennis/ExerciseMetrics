@@ -1,5 +1,6 @@
 import fitdecode
 import csv
+import os
 
 DOUBLE_IF_STRIDE = True
 
@@ -61,7 +62,7 @@ def build_path(file) -> str:
 
 if __name__ == "__main__":
   input_file = "run_recovery_5k_260701.fit"
-  output_file = "cadence_output.csv"
+  output_file = f"{str.split(input_file,".")[0]}.csv"
   input_file = build_path(input_file)
   output_file = build_path(output_file)
 
