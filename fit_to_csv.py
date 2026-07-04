@@ -1,14 +1,18 @@
 import fitdecode
 import csv
 
+DATA = "data"
 INPUT_FILE = "run_5kEmm_260616.fit"
 OUTPUT_FILE = "cadence_output.csv"
+
+input_file = f"{DATA}/{INPUT_FILE}"
+output_file = f"{DATA}/{OUTPUT_FILE}"
 
 DOUBLE_IF_STRIDE = True
 
 rows = []
 
-with fitdecode.FitReader(INPUT_FILE) as fit:
+with fitdecode.FitReader(input_file) as fit:
     for frame in fit:
         if isinstance(frame, fitdecode.FitDataMessage) and frame.name == "record":
 
@@ -38,7 +42,7 @@ with fitdecode.FitReader(INPUT_FILE) as fit:
                     "step_length": step_length
                 })
 
-with open(OUTPUT_FILE, "w", newline="") as f:
+with open(input_file, "w", newline="") as f:
     writer = csv.DictWriter(
         f,
         fieldnames=[
@@ -56,3 +60,4 @@ with open(OUTPUT_FILE, "w", newline="") as f:
     writer.writerows(rows)
 
 print(f"Saved {len(rows)} rows to {OUTPUT_FILE}")
+
