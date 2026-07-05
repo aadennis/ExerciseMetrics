@@ -61,8 +61,8 @@ def build_path(file) -> str:
     return f"{folder}/{file}"
 
 if __name__ == "__main__":
-  input_file = "run_recovery_5k_260701.fit"
-  output_file = f"{str.split(input_file,".")[0]}.csv"
+  input_file = "5k 125bpm_260702.fit"
+  output_file = f"{str.split(input_file,".")[0]}-fit.csv"
   input_file = build_path(input_file)
   output_file = build_path(output_file)
 
