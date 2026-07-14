@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df = pd.read_csv("cadence_output.csv")
+df = pd.read_csv("data/full 6 July-fit.csv")
 
 # --- shape data ---
 # Remove stop periods (cadence = 0)

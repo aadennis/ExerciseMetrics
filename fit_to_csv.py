@@ -25,6 +25,8 @@ def convert_fit_to_csv(input_file, output_file):
                     cadence_spm = cadence_full * 2 if DOUBLE_IF_STRIDE else cadence_full
                     step_length = data.get("step_length")
                     step_length = round(step_length / 1000.0,2) if step_length is not None else None
+                    enhanced_altitude = data.get("enhanced_altitude")
+                    distance = data.get("distance")
 
                     rows.append({
                         "timestamp": timestamp,
@@ -34,7 +36,9 @@ def convert_fit_to_csv(input_file, output_file):
                         "cadence_spm": cadence_spm,
                         "enhanced_speed": data.get("enhanced_speed"),
                         "heart_rate": data.get("heart_rate"),
-                        "step_length": step_length
+                        "step_length": step_length,
+                        "enhanced_altitude": enhanced_altitude,
+                        "distance": distance
                     })
 
     with open(output_file, "w", newline="") as f:
@@ -48,7 +52,9 @@ def convert_fit_to_csv(input_file, output_file):
                 "cadence_spm",
                 "enhanced_speed",
                 "heart_rate",
-                "step_length"
+                "step_length",
+                "enhanced_altitude",
+                "distance"
             ]
         )
         writer.writeheader()
@@ -56,14 +62,14 @@ def convert_fit_to_csv(input_file, output_file):
 
     print(f"Saved {len(rows)} rows to {output_file}")
 
-def build_path(file) -> str:
-    folder = "data"
+def build_path(file, is_output: bool) -> str:
+    folder = "data" if not is_output else "data/output"
     return f"{folder}/{file}"
 
 if __name__ == "__main__":
-  input_file = "5k 125bpm_260702.fit"
+  input_file = "23591045148_ACTIVITY.fit"
   output_file = f"{str.split(input_file,".")[0]}-fit.csv"
-  input_file = build_path(input_file)
-  output_file = build_path(output_file)
+  input_file = build_path(input_file, False)
+  output_file = build_path(output_file, True)
 
   convert_fit_to_csv(input_file, output_file)

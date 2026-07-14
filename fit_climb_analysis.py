@@ -29,7 +29,10 @@ for col in required:
 df["alt_change"] = df[ALT].diff().fillna(0)
 
 # Define climbing samples
-df["climbing"] = df["alt_change"] > 0.5
+df["elev_10s"] = df["enhanced_altitude"].rolling(10).mean()
+df["climb_rate"] = df["elev_10s"].diff()
+
+df["climbing"] = df["climb_rate"] > 0.05
 
 # Estimate stride length
 #
