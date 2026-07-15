@@ -27,6 +27,7 @@ def convert_fit_to_csv(input_file, output_file):
                     step_length = round(step_length / 1000.0,2) if step_length is not None else None
                     enhanced_altitude = data.get("enhanced_altitude")
                     distance = data.get("distance")
+                   
 
                     rows.append({
                         "timestamp": timestamp,
@@ -34,7 +35,7 @@ def convert_fit_to_csv(input_file, output_file):
                         "frac": frac,
                         "cadence_raw": cadence_full,
                         "cadence_spm": cadence_spm,
-                        "enhanced_speed": data.get("enhanced_speed"),
+                        "speed": data.get("enhanced_speed"),
                         "heart_rate": data.get("heart_rate"),
                         "step_length": step_length,
                         "enhanced_altitude": enhanced_altitude,
@@ -50,7 +51,7 @@ def convert_fit_to_csv(input_file, output_file):
                 "frac",
                 "cadence_raw",
                 "cadence_spm",
-                "enhanced_speed",
+                "speed",
                 "heart_rate",
                 "step_length",
                 "enhanced_altitude",
@@ -67,7 +68,7 @@ def build_path(file, is_output: bool) -> str:
     return f"{folder}/{file}"
 
 if __name__ == "__main__":
-  input_file = "23591045148_ACTIVITY.fit"
+  input_file = "23603839943_ACTIVITY.fit"
   output_file = f"{str.split(input_file,".")[0]}-fit.csv"
   input_file = build_path(input_file, False)
   output_file = build_path(output_file, True)
