@@ -1,6 +1,5 @@
 import fitdecode
 import csv
-import os
 
 DOUBLE_IF_STRIDE = True
 
