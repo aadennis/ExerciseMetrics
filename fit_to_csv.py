@@ -1,9 +1,6 @@
 import csv
 import fitdecode
 
-DOUBLE_IF_STRIDE = True
-
-
 def _normalize_value(data, field_name):
     value = data.get(field_name)
     if field_name == "step_length" and value is not None:
@@ -33,15 +30,11 @@ def convert_fit_to_csv(input_file, output_file):
                 continue
 
             frac = data.get("fractional_cadence", 0)
-            cadence_full = cadence + frac
-            cadence_spm = cadence_full * 2 if DOUBLE_IF_STRIDE else cadence_full
-
+            cadence_spm = 2 * cadence + frac
+            
             rows.append(
                 {
                     "timestamp": data.get("timestamp"),
-                    "orig_cadence": cadence,
-                    "frac": frac,
-                    "cadence_raw": cadence_full,
                     "cadence_spm": cadence_spm,
                     **{
                         name: _normalize_value(data, src)
@@ -55,9 +48,6 @@ def convert_fit_to_csv(input_file, output_file):
             f,
             fieldnames=[
                 "timestamp",
-                "orig_cadence",
-                "frac",
-                "cadence_raw",
                 "cadence_spm",
                 "speed",
                 "heart_rate",
