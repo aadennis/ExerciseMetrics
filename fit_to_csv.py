@@ -17,7 +17,6 @@ def convert_fit_to_csv(input_file, output_file):
         "speed": "enhanced_speed",
         "heart_rate": "heart_rate",
         "step_length": "step_length",
-        "enhanced_altitude": "enhanced_altitude",
         "distance": "distance",
     }
 
@@ -63,7 +62,6 @@ def convert_fit_to_csv(input_file, output_file):
                 "speed",
                 "heart_rate",
                 "step_length",
-                "enhanced_altitude",
                 "distance",
             ],
         )
