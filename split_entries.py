@@ -18,8 +18,7 @@ cols = [
 
 # Keep only Run and Recovery intervals
 intervals = (
-    df[df["Step Type"].isin(["Run", "Recovery"])]
-    [cols]
+    df[cols]
     .reset_index(drop=True)
 )
 
