@@ -13,6 +13,13 @@ def _normalize_value(data, field_name):
 
 def convert_fit_to_csv(input_file, output_file):
     rows = []
+    fields = {
+        "speed": "enhanced_speed",
+        "heart_rate": "heart_rate",
+        "step_length": "step_length",
+        "enhanced_altitude": "enhanced_altitude",
+        "distance": "distance",
+    }
 
     with fitdecode.FitReader(input_file) as fit:
         for frame in fit:
@@ -38,14 +45,8 @@ def convert_fit_to_csv(input_file, output_file):
                     "cadence_raw": cadence_full,
                     "cadence_spm": cadence_spm,
                     **{
-                        output_name: _normalize_value(data, source_name)
-                        for output_name, source_name in {
-                            "speed": "enhanced_speed",
-                            "heart_rate": "heart_rate",
-                            "step_length": "step_length",
-                            "enhanced_altitude": "enhanced_altitude",
-                            "distance": "distance",
-                        }.items()
+                        name: _normalize_value(data, src)
+                        for name, src in fields.items()
                     },
                 }
             )
