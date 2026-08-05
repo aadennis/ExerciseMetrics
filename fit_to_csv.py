@@ -15,6 +15,9 @@ def convert_fit_to_csv(input_file, output_file):
         "heart_rate": "heart_rate",
         "step_length": "step_length",
         "distance": "distance",
+        "vertical_oscillation": "vertical_oscillation",
+        "vertical_ratio": "vertical_ratio",
+        "stance_time": "stance_time"
     }
 
     with fitdecode.FitReader(input_file) as fit:
@@ -53,6 +56,9 @@ def convert_fit_to_csv(input_file, output_file):
                 "heart_rate",
                 "step_length",
                 "distance",
+                "vertical_oscillation",
+                "vertical_ratio",
+                "stance_time"
             ],
         )
         writer.writeheader()
@@ -67,7 +73,7 @@ def build_path(file, is_output: bool) -> str:
 
 
 if __name__ == "__main__":
-    input_file = "23603839943_ACTIVITY.fit"
+    input_file = "3August_ACTIVITY.fit"
     output_file = f"{input_file.rsplit('.', 1)[0]}-fit.csv"
     input_file = build_path(input_file, False)
     output_file = build_path(output_file, True)
