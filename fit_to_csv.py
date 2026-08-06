@@ -17,7 +17,8 @@ def convert_fit_to_csv(input_file, output_file):
         "distance": "distance",
         "vertical_oscillation": "vertical_oscillation",
         "vertical_ratio": "vertical_ratio",
-        "stance_time": "stance_time"
+        "stance_time": "stance_time",
+        "fractional_cadence": "fractional_cadence"
     }
 
     with fitdecode.FitReader(input_file) as fit:
@@ -33,7 +34,7 @@ def convert_fit_to_csv(input_file, output_file):
                 continue
 
             frac = data.get("fractional_cadence", 0)
-            cadence_spm = 2 * cadence + frac
+            cadence_spm = 2 * (cadence + frac)
             
             rows.append(
                 {
@@ -58,7 +59,8 @@ def convert_fit_to_csv(input_file, output_file):
                 "distance",
                 "vertical_oscillation",
                 "vertical_ratio",
-                "stance_time"
+                "stance_time",
+                "fractional_cadence"
             ],
         )
         writer.writeheader()
