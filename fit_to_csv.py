@@ -1,11 +1,20 @@
 import csv
 import fitdecode
 
+
 def _normalize_value(data, field_name):
     value = data.get(field_name)
     if field_name == "step_length" and value is not None:
         value = round(value / 1000.0, 2)
     return value
+
+
+def _build_normalized_row(data, fields):
+    row = {name: _normalize_value(data, src) for name, src in fields.items()}
+    cadence = row.get("cadence")
+    if cadence is not None:
+        row["cadence_spm"] = cadence * 2 + (row.get("fractional_cadence") or 0)
+    return row
 
 
 def convert_fit_to_csv(input_file, output_file):
@@ -18,7 +27,9 @@ def convert_fit_to_csv(input_file, output_file):
         "vertical_oscillation": "vertical_oscillation",
         "vertical_ratio": "vertical_ratio",
         "stance_time": "stance_time",
-        "fractional_cadence": "fractional_cadence"
+        "cadence": "cadence",
+        "fractional_cadence": "fractional_cadence",
+        "timestamp": "timestamp",
     }
 
     with fitdecode.FitReader(input_file) as fit:
@@ -29,29 +40,14 @@ def convert_fit_to_csv(input_file, output_file):
                 continue
 
             data = {field.name: field.value for field in frame.fields}
-            cadence = data.get("cadence")
-            if cadence is None:
-                continue
-
-            frac = data.get("fractional_cadence", 0)
-            cadence_spm = 2 * (cadence + frac)
-            
-            rows.append(
-                {
-                    "timestamp": data.get("timestamp"),
-                    "cadence_spm": cadence_spm,
-                    **{
-                        name: _normalize_value(data, src)
-                        for name, src in fields.items()
-                    },
-                }
-            )
+            rows.append(_build_normalized_row(data, fields))
 
     with open(output_file, "w", newline="") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[
                 "timestamp",
+                "cadence",
                 "cadence_spm",
                 "speed",
                 "heart_rate",
@@ -60,7 +56,7 @@ def convert_fit_to_csv(input_file, output_file):
                 "vertical_oscillation",
                 "vertical_ratio",
                 "stance_time",
-                "fractional_cadence"
+                "fractional_cadence",
             ],
         )
         writer.writeheader()
