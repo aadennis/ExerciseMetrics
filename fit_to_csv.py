@@ -6,6 +6,8 @@ def _normalize_value(data, field_name):
     value = data.get(field_name)
     if field_name == "step_length" and value is not None:
         value = round(value / 1000.0, 2)
+    if field_name == "enhanced_altitude":
+        value = round(value, 3)
     return value
 
 
@@ -21,6 +23,7 @@ def convert_fit_to_csv(input_file, output_file):
     rows = []
     fields = {
         "speed": "enhanced_speed",
+        "altitude":"enhanced_altitude",
         "heart_rate": "heart_rate",
         "step_length": "step_length",
         "distance": "distance",
@@ -57,6 +60,7 @@ def convert_fit_to_csv(input_file, output_file):
                 "vertical_ratio",
                 "stance_time",
                 "fractional_cadence",
+                "altitude"
             ],
         )
         writer.writeheader()
