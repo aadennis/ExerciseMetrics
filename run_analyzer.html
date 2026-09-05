@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Run analyzer</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --border: #e2e0d9;
+    --text: #1a1a18;
+    --text-secondary: #6b6a63;
+    --accent: #2a78d6;
+    --accent2: #e34948;
+    --accent3: #008300;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 0.25rem; }
+  p.sub { color: var(--text-secondary); margin: 0 0 1.5rem; font-size: 14px; }
+
+  .upload-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+  .upload-box {
+    flex: 1;
+    min-width: 260px;
+    background: var(--card);
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+  }
+  .upload-box label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+  .upload-box input[type=file] { font-size: 13px; width: 100%; }
+  .upload-box .filename { font-size: 12px; color: var(--accent); margin-top: 0.5rem; word-break: break-all; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat-card .value { font-size: 20px; font-weight: 600; }
+  .stat-card .value.b { color: var(--accent2); }
+
+  table.splits {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 13px;
+    margin-bottom: 1.5rem;
+  }
+  table.splits th, table.splits td {
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+  }
+  table.splits th:first-child, table.splits td:first-child { text-align: left; }
+  table.splits th { color: var(--text-secondary); font-weight: 600; background: #f4f3ee; }
+  table.splits tr:last-child td { border-bottom: none; }
+
+  .chart-block {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .chart-block h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 3rem 1rem;
+    font-size: 14px;
+  }
+  .error {
+    background: #fdecec;
+    color: #9a2323;
+    border: 1px solid #f3c6c6;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 13px;
+    margin-bottom: 1rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Run analyzer</h1>
+  <p class="sub">Drop in a Garmin Connect activity CSV export (timestamp, speed, heart_rate, cadence_spm, distance columns) to see pace / heart rate / cadence splits. Add a second file to compare two runs.</p>
+
+  <div class="upload-row">
+    <div class="upload-box">
+      <label for="fileA">Run A</label>
+      <input type="file" id="fileA" accept=".csv" />
+      <div class="filename" id="nameA"></div>
+    </div>
+    <div class="upload-box">
+      <label for="fileB">Run B (optional, for comparison)</label>
+      <input type="file" id="fileB" accept=".csv" />
+      <div class="filename" id="nameB"></div>
+    </div>
+  </div>
+
+  <div id="errorBox"></div>
+  <div id="emptyState" class="empty-state">Upload Run A to get started.</div>
+  <div id="results" style="display:none;"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const COLORS = { A: '#2a78d6', B: '#e34948' };
+let runs = { A: null, B: null };
+let charts = [];
+
+document.getElementById('fileA').addEventListener('change', e => handleFile(e, 'A'));
+document.getElementById('fileB').addEventListener('change', e => handleFile(e, 'B'));
+
+function handleFile(e, slot) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('name' + slot).textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const parsed = parseCsv(evt.target.result);
+      runs[slot] = { name: file.name, rows: parsed };
+      showError('');
+      render();
+    } catch (err) {
+      showError('Could not read ' + file.name + ': ' + err.message);
+    }
+  };
+  reader.onerror = () => showError('Failed to read ' + file.name);
+  reader.readAsText(file);
+}
+
+function showError(msg) {
+  document.getElementById('errorBox').innerHTML = msg
+    ? '<div class="error">' + msg + '</div>'
+    : '';
+}
+
+function parseCsv(text) {
+  const result = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true });
+  if (result.errors && result.errors.length && !result.data.length) {
+    throw new Error('CSV parsing failed');
+  }
+  const required = ['timestamp', 'speed', 'heart_rate', 'cadence_spm', 'distance'];
+  const cols = result.meta.fields || [];
+  const missing = required.filter(c => !cols.includes(c));
+  if (missing.length) {
+    throw new Error('missing column(s): ' + missing.join(', '));
+  }
+  const rows = result.data
+    .filter(r => r.timestamp && r.distance != null && r.speed != null)
+    .map(r => ({
+      t: new Date(r.timestamp),
+      speed: Number(r.speed) || 0,
+      hr: Number(r.heart_rate) || null,
+      spm: Number(r.cadence_spm) || null,
+      distance: Number(r.distance) || 0
+    }))
+    .filter(r => !isNaN(r.t.getTime()));
+  if (!rows.length) throw new Error('no usable rows found');
+  return rows;
+}
+
+function paceFromSpeed(speedMs) {
+  if (!speedMs || speedMs < 0.3) return null;
+  return 1000 / (speedMs * 60); // min per km
+}
+
+function formatPace(p) {
+  if (p == null || !isFinite(p)) return '--:--';
+  const mins = Math.floor(p);
+  const secs = Math.round((p - mins) * 60);
+  return mins + ':' + String(secs).padStart(2, '0');
+}
+
+function formatDuration(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function computeKmSplits(rows) {
+  const maxDist = rows[rows.length - 1].distance;
+  const numKm = Math.floor(maxDist / 1000);
+  const splits = [];
+  for (let i = 0; i < numKm; i++) {
+    const lo = i * 1000, hi = (i + 1) * 1000;
+    const seg = rows.filter(r => r.distance >= lo && r.distance < hi);
+    if (!seg.length) continue;
+    const durSec = (seg[seg.length - 1].t - seg[0].t) / 1000;
+    const distKm = (seg[seg.length - 1].distance - seg[0].distance) / 1000;
+    const pace = distKm > 0 ? (durSec / 60) / distKm : null;
+    const hrs = seg.map(r => r.hr).filter(v => v != null && v > 0);
+    const spms = seg.map(r => r.spm).filter(v => v != null && v > 0);
+    splits.push({
+      km: i + 1,
+      durSec,
+      pace,
+      avgHr: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null,
+      avgSpm: spms.length ? spms.reduce((a, b) => a + b, 0) / spms.length : null
+    });
+  }
+  return splits;
+}
+
+function summarize(rows) {
+  const durSec = (rows[rows.length - 1].t - rows[0].t) / 1000;
+  const distKm = rows[rows.length - 1].distance / 1000;
+  const hrs = rows.map(r => r.hr).filter(v => v != null && v > 0);
+  const avgHr = hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null;
+  const maxHr = hrs.length ? Math.max(...hrs) : null;
+  return {
+    durSec, distKm,
+    avgPace: distKm > 0 ? (durSec / 60) / distKm : null,
+    avgHr, maxHr
+  };
+}
+
+function destroyCharts() {
+  charts.forEach(c => c.destroy());
+  charts = [];
+}
+
+function render() {
+  const a = runs.A;
+  if (!a) {
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    return;
+  }
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+  destroyCharts();
+
+  const b = runs.B;
+  const summaryA = summarize(a.rows);
+  const summaryB = b ? summarize(b.rows) : null;
+  const splitsA = computeKmSplits(a.rows);
+  const splitsB = b ? computeKmSplits(b.rows) : null;
+
+  let html = '';
+
+  // Summary stat cards
+  html += '<div class="stats-grid">';
+  html += statCard('Distance', summaryA.distKm.toFixed(2) + ' km', summaryB ? summaryB.distKm.toFixed(2) + ' km' : null);
+  html += statCard('Duration', formatDuration(summaryA.durSec), summaryB ? formatDuration(summaryB.durSec) : null);
+  html += statCard('Avg pace', formatPace(summaryA.avgPace) + '/km', summaryB ? formatPace(summaryB.avgPace) + '/km' : null);
+  html += statCard('Avg HR', summaryA.avgHr ? Math.round(summaryA.avgHr) + ' bpm' : '--', summaryB && summaryB.avgHr ? Math.round(summaryB.avgHr) + ' bpm' : null);
+  html += '</div>';
+
+  // legend if comparing
+  if (b) {
+    html += '<div class="legend">' +
+      '<span><span class="swatch" style="background:' + COLORS.A + '"></span>' + escapeHtml(a.name) + '</span>' +
+      '<span><span class="swatch" style="background:' + COLORS.B + '"></span>' + escapeHtml(b.name) + '</span>' +
+      '</div>';
+  }
+
+  // Splits table
+  html += '<table class="splits"><thead><tr><th>Km</th><th>Pace' + (b ? ' (A)' : '') + '</th>' +
+    (b ? '<th>Pace (B)</th>' : '') +
+    '<th>HR' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>HR (B)</th>' : '') +
+    '<th>Cadence' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>Cadence (B)</th>' : '') +
+    '</tr></thead><tbody>';
+  const numRows = Math.max(splitsA.length, splitsB ? splitsB.length : 0);
+  for (let i = 0; i < numRows; i++) {
+    const sa = splitsA[i], sb = splitsB ? splitsB[i] : null;
+    html += '<tr><td>' + (i + 1) + '</td>';
+    html += '<td>' + (sa ? formatPace(sa.pace) : '--') + '</td>';
+    if (b) html += '<td>' + (sb ? formatPace(sb.pace) : '--') + '</td>';
+    html += '<td>' + (sa && sa.avgHr ? Math.round(sa.avgHr) : '--') + '</td>';
+    if (b) html += '<td>' + (sb && sb.avgHr ? Math.round(sb.avgHr) : '--') + '</td>';
+    html += '<td>' + (sa && sa.avgSpm ? sa.avgSpm.toFixed(1) : '--') + '</td>';
+    if (b) html += '<td>' + (sb && sb.avgSpm ? sb.avgSpm.toFixed(1) : '--') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  // Chart blocks: pace, HR, cadence per km (bar), plus full-run line charts
+  html += chartBlock('kmPace', 'Pace per km (min/km)');
+  html += chartBlock('kmHr', 'Heart rate per km (bpm)');
+  html += chartBlock('kmSpm', 'Cadence per km (spm)');
+  html += chartBlock('linePace', 'Pace over full run');
+  html += chartBlock('lineHr', 'Heart rate over full run');
+  html += chartBlock('lineSpm', 'Cadence over full run');
+
+  document.getElementById('results').innerHTML = html;
+
+  // Build charts after DOM insert
+  buildBarChart('kmPace', splitsA.map(s => s.km), splitsA.map(s => round2(s.pace)), splitsB ? splitsB.map(s => round2(s.pace)) : null, { min: 0 });
+  buildBarChart('kmHr', splitsA.map(s => s.km), splitsA.map(s => s.avgHr ? Math.round(s.avgHr) : null), splitsB ? splitsB.map(s => s.avgHr ? Math.round(s.avgHr) : null) : null, {});
+  buildBarChart('kmSpm', splitsA.map(s => s.km), splitsA.map(s => s.avgSpm ? round2(s.avgSpm) : null), splitsB ? splitsB.map(s => s.avgSpm ? round2(s.avgSpm) : null) : null, {});
+
+  buildLineChart('linePace', a.rows, r => paceFromSpeed(r.speed), b ? b.rows : null, { min: 0 });
+  buildLineChart('lineHr', a.rows, r => r.hr, b ? b.rows : null, {});
+  buildLineChart('lineSpm', a.rows, r => r.spm, b ? b.rows : null, {});
+}
+
+function round2(v) { return v == null ? null : Math.round(v * 100) / 100; }
+
+function statCard(label, valA, valB) {
+  return '<div class="stat-card"><div class="label">' + label + '</div>' +
+    '<div class="value">' + valA + '</div>' +
+    (valB ? '<div class="value b">' + valB + '</div>' : '') +
+    '</div>';
+}
+
+function chartBlock(id, title) {
+  return '<div class="chart-block"><h3>' + title + '</h3>' +
+    '<div class="chart-wrap"><canvas id="' + id + '" role="img" aria-label="' + title + '"></canvas></div></div>';
+}
+
+function baseOptions(opts) {
+  opts = opts || {};
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#898781', font: { size: 11 }, maxTicksLimit: 10 } },
+      y: { min: opts.min, grid: { color: '#e1e0d9' }, ticks: { color: '#898781', font: { size: 11 } } }
+    }
+  };
+}
+
+function buildBarChart(id, labels, dataA, dataB, opts) {
+  const datasets = [{ label: 'A', data: dataA, backgroundColor: COLORS.A, borderRadius: 3 }];
+  if (dataB) datasets.push({ label: 'B', data: dataB, backgroundColor: COLORS.B, borderRadius: 3 });
+  const c = new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: labels.map(k => 'km' + k), datasets },
+    options: baseOptions(opts)
+  });
+  charts.push(c);
+}
+
+function buildLineChart(id, rowsA, extractFn, rowsB, opts) {
+  // x-axis is elapsed seconds since run start (both files are ~1Hz samples),
+  // so two runs of different pace/length still line up by time-in-run rather
+  // than by distance (which would misalign point-for-point).
+  const t0A = rowsA[0].t.getTime();
+  const dataA = rowsA.map(r => ({ x: Math.round((r.t.getTime() - t0A) / 1000), y: (() => { const v = extractFn(r); return v == null ? null : round2(v); })() }));
+  const datasets = [{ data: dataA, borderColor: COLORS.A, borderWidth: 1.5, pointRadius: 0, tension: 0.2, parsing: false }];
+  let maxSec = dataA.length ? dataA[dataA.length - 1].x : 0;
+  if (rowsB) {
+    const t0B = rowsB[0].t.getTime();
+    const dataB = rowsB.map(r => ({ x: Math.round((r.t.getTime() - t0B) / 1000), y: (() => { const v = extractFn(r); return v == null ? null : round2(v); })() }));
+    maxSec = Math.max(maxSec, dataB.length ? dataB[dataB.length - 1].x : 0);
+    datasets.push({ data: dataB, borderColor: COLORS.B, borderWidth: 1.5, pointRadius: 0, tension: 0.2, parsing: false });
+  }
+  const opt = baseOptions(opts);
+  opt.scales.x = Object.assign({}, opt.scales.x, {
+    type: 'linear',
+    min: 0,
+    max: maxSec,
+    ticks: Object.assign({}, opt.scales.x.ticks, {
+      callback: function(val) {
+        const m = Math.floor(val / 60), s = Math.round(val % 60);
+        return m + ':' + String(s).padStart(2, '0');
+      }
+    })
+  });
+  const c = new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { datasets },
+    options: opt
+  });
+  charts.push(c);
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+</script>
+</body>
+</html>

@@ -187,5 +187,5 @@ def get_fit_per_km(fit_file):
     print(f"input file is [{fit_file}]")
 
 if __name__ == "__main__":
-    CSV_FILE = "data/output/3August_ACTIVITY-fit.csv"
+    CSV_FILE = "data/output/2026-09-03_ACTIVITY-fit.csv"
     get_fit_per_km(CSV_FILE)

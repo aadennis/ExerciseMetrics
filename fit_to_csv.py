@@ -75,7 +75,7 @@ def build_path(file, is_output: bool) -> str:
 
 
 if __name__ == "__main__":
-    input_file = "3August_ACTIVITY.fit"
+    input_file = "5k_pb_29m34_ACTIVITY.fit"
     output_file = f"{input_file.rsplit('.', 1)[0]}-fit.csv"
     input_file = build_path(input_file, False)
     output_file = build_path(output_file, True)
