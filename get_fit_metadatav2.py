@@ -9,7 +9,7 @@ building more specialized analysis scripts.
 
 import fitdecode
 
-EXCLUSIONS = ("unknown","stance","frac","cycle")
+EXCLUSIONS = ("unknown","cycle_length16", "stance_time_balance","stance_time_percent")
 
 input_file = "data/5k_ACTIVITY.fit"
 
