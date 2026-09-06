@@ -127,7 +127,7 @@
 <body>
 <div class="wrap">
   <h1>Run analyzer</h1>
-  <p class="sub">Drop in a Garmin Connect activity CSV export (timestamp, speed, heart_rate, cadence_spm, distance columns) to see pace / heart rate / cadence splits. Add a second file to compare two runs.</p>
+  <p class="sub">Drop in a Garmin Connect activity CSV export (timestamp, speed, heart_rate, cadence, distance columns) to see pace / heart rate / cadence splits. Add a second file to compare two runs.</p>
 
   <div class="upload-row">
     <div class="upload-box">
@@ -188,12 +188,8 @@ function parseCsv(text) {
     throw new Error('CSV parsing failed');
   }
   const cols = result.meta.fields || [];
-  // Garmin export column names have varied: cadence_spm (older) vs cadence
-  // (newer, already full steps/min). Accept either.
-  const cadenceCol = cols.includes('cadence_spm') ? 'cadence_spm' : (cols.includes('cadence') ? 'cadence' : null);
-  const required = ['timestamp', 'speed', 'heart_rate', 'distance'];
+  const required = ['timestamp', 'speed', 'heart_rate', 'distance', 'cadence'];
   const missing = required.filter(c => !cols.includes(c));
-  if (!cadenceCol) missing.push('cadence_spm (or cadence)');
   if (missing.length) {
     throw new Error('missing column(s): ' + missing.join(', '));
   }
@@ -203,7 +199,7 @@ function parseCsv(text) {
       t: new Date(r.timestamp),
       speed: Number(r.speed) || 0,
       hr: Number(r.heart_rate) || null,
-      spm: Number(r[cadenceCol]) || null,
+      spm: Number(r.cadence) || null,
       distance: Number(r.distance) || 0
     }))
     .filter(r => !isNaN(r.t.getTime()));
