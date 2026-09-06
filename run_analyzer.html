@@ -187,9 +187,13 @@ function parseCsv(text) {
   if (result.errors && result.errors.length && !result.data.length) {
     throw new Error('CSV parsing failed');
   }
-  const required = ['timestamp', 'speed', 'heart_rate', 'cadence_spm', 'distance'];
   const cols = result.meta.fields || [];
+  // Garmin export column names have varied: cadence_spm (older) vs cadence
+  // (newer, already full steps/min). Accept either.
+  const cadenceCol = cols.includes('cadence_spm') ? 'cadence_spm' : (cols.includes('cadence') ? 'cadence' : null);
+  const required = ['timestamp', 'speed', 'heart_rate', 'distance'];
   const missing = required.filter(c => !cols.includes(c));
+  if (!cadenceCol) missing.push('cadence_spm (or cadence)');
   if (missing.length) {
     throw new Error('missing column(s): ' + missing.join(', '));
   }
@@ -199,7 +203,7 @@ function parseCsv(text) {
       t: new Date(r.timestamp),
       speed: Number(r.speed) || 0,
       hr: Number(r.heart_rate) || null,
-      spm: Number(r.cadence_spm) || null,
+      spm: Number(r[cadenceCol]) || null,
       distance: Number(r.distance) || 0
     }))
     .filter(r => !isNaN(r.t.getTime()));
