@@ -14,6 +14,7 @@ def get_fit_metadata(filePath: str) -> set:
                   fields_seen.add(f.name)
   return fields_seen
 
-INPUT_FILE = "run_5kEmm_260616.fit"
+INPUT_FILE = "data/run_5kEmm_260616.fit"
 f = get_fit_metadata(INPUT_FILE)
-print(sorted(f))
+for i in sorted(f):
+    print(i)
