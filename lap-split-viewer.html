@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Lap Split Viewer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
   :root{
     --bg: #12151b;
@@ -350,10 +350,26 @@ function render(rawRows, filename){
   destroyCharts();
   renderHero(summary, laps);
   renderTable(laps, summary);
-  renderPaceHr(laps, modalVal);
-  renderPowerCad(laps);
-  renderDynamics(laps);
-  renderElev(laps);
+
+  if (typeof Chart === 'undefined'){
+    ['chartPaceHr','chartPowerCad','chartDynamics','chartElev'].forEach(id => showChartError(id, 'Chart.js did not load (check network access to cdnjs.cloudflare.com)'));
+    return;
+  }
+  safe(() => renderPaceHr(laps, modalVal), 'chartPaceHr');
+  safe(() => renderPowerCad(laps), 'chartPowerCad');
+  safe(() => renderDynamics(laps), 'chartDynamics');
+  safe(() => renderElev(laps), 'chartElev');
+}
+
+function safe(fn, canvasId){
+  try { fn(); }
+  catch(e){ console.error(canvasId, e); showChartError(canvasId, e.message); }
+}
+function showChartError(canvasId, msg){
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const holder = canvas.closest('.chart-holder');
+  holder.innerHTML = `<div style="color:#e2665f; font-size:12.5px; padding:10px 2px;">Chart failed to render: ${msg}</div>`;
 }
 
 function renderHero(summary, laps){
@@ -423,6 +439,7 @@ function renderPaceHr(laps, modalVal){
   const hr = laps.map(r => num(r['Avg HR bpm']));
   const ctx = document.getElementById('chartPaceHr');
   const c = new Chart(ctx, {
+    type: 'bar',
     data: {
       labels,
       datasets: [
