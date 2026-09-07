@@ -8,6 +8,8 @@ speed, altitude, cadence, heart rate, and pacing-related metrics.
 
 import csv
 import fitdecode
+import os
+from pathlib import Path
 
 
 def _normalize_value(data, orig_field_name) -> float:
@@ -112,13 +114,14 @@ def build_path(file, is_output: bool) -> str:
     Returns:
         A path string for the requested file.
     """
-    folder = "data" if not is_output else "data/output"
+    garmin_fit_dir = Path(os.environ["garmin-fit-dir"])
+    folder = garmin_fit_dir if not is_output else f"{garmin_fit_dir}/output"
     return f"{folder}/{file}"
 
 
 if __name__ == "__main__":
     """Run the conversion using the default example data file."""
-    input_file = "splits 5 July.fit"
+    input_file = "2026-09-03.fit"
     output_file = f"{input_file.rsplit('.', 1)[0]}-fit.csv"
     input_file = build_path(input_file, False)
     output_file = build_path(output_file, True)

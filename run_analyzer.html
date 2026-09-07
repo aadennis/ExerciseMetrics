@@ -228,6 +228,7 @@ function formatDuration(sec) {
 function computeKmSplits(rows) {
   const maxDist = rows[rows.length - 1].distance;
   const numKm = Math.floor(maxDist / 1000);
+  const t0 = rows[0].t;
   const splits = [];
   for (let i = 0; i < numKm; i++) {
     const lo = i * 1000, hi = (i + 1) * 1000;
@@ -238,9 +239,11 @@ function computeKmSplits(rows) {
     const pace = distKm > 0 ? (durSec / 60) / distKm : null;
     const hrs = seg.map(r => r.hr).filter(v => v != null && v > 0);
     const spms = seg.map(r => r.spm).filter(v => v != null && v > 0);
+    const cumSec = (seg[seg.length - 1].t - t0) / 1000;
     splits.push({
       km: i + 1,
       durSec,
+      cumSec,
       pace,
       avgHr: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null,
       avgSpm: spms.length ? spms.reduce((a, b) => a + b, 0) / spms.length : null
@@ -303,7 +306,7 @@ function render() {
   }
 
   // Splits table
-  html += '<table class="splits"><thead><tr><th>Km</th><th>Pace' + (b ? ' (A)' : '') + '</th>' +
+  html += '<table class="splits"><thead><tr><th>Km</th><th>Cumulative</th><th>Pace' + (b ? ' (A)' : '') + '</th>' +
     (b ? '<th>Pace (B)</th>' : '') +
     '<th>HR' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>HR (B)</th>' : '') +
     '<th>Cadence' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>Cadence (B)</th>' : '') +
@@ -312,6 +315,7 @@ function render() {
   for (let i = 0; i < numRows; i++) {
     const sa = splitsA[i], sb = splitsB ? splitsB[i] : null;
     html += '<tr><td>' + (i + 1) + '</td>';
+    html += '<td>' + (sa ? formatDuration(sa.cumSec) : '--') + (b ? (sb ? ' / ' + formatDuration(sb.cumSec) : ' / --') : '') + '</td>';
     html += '<td>' + (sa ? formatPace(sa.pace) : '--') + '</td>';
     if (b) html += '<td>' + (sb ? formatPace(sb.pace) : '--') + '</td>';
     html += '<td>' + (sa && sa.avgHr ? Math.round(sa.avgHr) : '--') + '</td>';
