@@ -13,6 +13,7 @@ If it is not found, an exception is thrown, and we exit.
 import pandas as pd
 from pathlib import Path
 
+input_file = ""
 CSV_FILE = "c:/temp/run_splits_30m30.csv"
 
 LOCAL_OUTPUT = True
