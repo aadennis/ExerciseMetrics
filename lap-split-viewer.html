@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lap Split Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #12151b;
+    --surface: #1a1f27;
+    --surface-2: #20262f;
+    --line: #2a313c;
+    --text: #eae7df;
+    --muted: #8b93a3;
+    --amber: #f0a868;
+    --coral: #e2665f;
+    --blue: #6fa3d6;
+    --sage: #8fbf9f;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(111,163,214,0.08), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(240,168,104,0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height:100vh;
+    padding: 32px 20px 80px;
+  }
+  .wrap{ max-width: 1080px; margin: 0 auto; }
+
+  /* ---------- Drop zone ---------- */
+  #dropzone{
+    max-width: 640px;
+    margin: 10vh auto 0;
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    padding: 56px 40px;
+    text-align:center;
+    background: var(--surface);
+    transition: border-color .15s ease, background .15s ease;
+  }
+  #dropzone.drag{ border-color: var(--amber); background: var(--surface-2); }
+  #dropzone h1{
+    font-family:'Barlow Condensed', var(--sans);
+    font-weight:600;
+    font-size: 30px;
+    letter-spacing: 0.3px;
+    margin-bottom:10px;
+  }
+  #dropzone p{ color: var(--muted); font-size:14.5px; line-height:1.6; margin-bottom: 26px;}
+  #dropzone .icon{
+    width:52px; height:52px; margin: 0 auto 22px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+  }
+  #filepick{
+    display:inline-block;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    font-size: 14px;
+    font-weight:600;
+    cursor:pointer;
+    background: transparent;
+  }
+  #filepick:hover{ background: rgba(240,168,104,0.08); }
+  #filein{ display:none; }
+  #err{ color: var(--coral); font-size: 13px; margin-top:16px; display:none; }
+
+  /* ---------- Dashboard ---------- */
+  #dash{ display:none; }
+
+  header.top{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    margin-bottom: 26px; flex-wrap:wrap; gap: 14px;
+  }
+  header.top h1{
+    font-family:'Barlow Condensed', var(--sans);
+    font-weight: 600;
+    font-size: 34px;
+    letter-spacing: 0.3px;
+  }
+  header.top .sub{ color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+  #newfile{
+    font-size: 12.5px; color: var(--muted); background:none; border:1px solid var(--line);
+    border-radius: 7px; padding: 8px 14px; cursor:pointer;
+  }
+  #newfile:hover{ color: var(--text); border-color: var(--muted); }
+
+  /* Hero stat strip */
+  .hero{
+    display:grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow:hidden;
+    margin-bottom: 28px;
+  }
+  .hero .cell{
+    background: var(--surface);
+    padding: 18px 16px;
+  }
+  .hero .cell .label{
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .hero .cell .val{
+    font-family: var(--mono); font-weight:600; font-size: 22px; line-height:1;
+  }
+  .hero .cell .val .unit{ font-size: 12px; color: var(--muted); font-weight:500; margin-left:3px;}
+  .hero .cell.accent-pace .val{ color: var(--amber); }
+  .hero .cell.accent-hr .val{ color: var(--coral); }
+  .hero .cell.accent-power .val{ color: var(--blue); }
+
+  /* Section cards */
+  .card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 22px 16px;
+    margin-bottom: 20px;
+  }
+  .card h2{
+    font-family:'Barlow Condensed', var(--sans);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.2px;
+    margin-bottom: 2px;
+  }
+  .card .cardsub{ color: var(--muted); font-size: 12.5px; margin-bottom: 14px; }
+  .chart-holder{ position: relative; height: 260px; }
+  .chart-row{ display:grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px){
+    .chart-row{ grid-template-columns: 1fr; }
+    .hero{ grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Table */
+  .table-scroll{ overflow-x:auto; }
+  table{ border-collapse: collapse; width: 100%; font-size: 13px; white-space:nowrap; }
+  thead th{
+    text-align:right; font-weight:600; color: var(--muted);
+    font-size: 10.5px; text-transform:uppercase; letter-spacing:0.4px;
+    padding: 8px 10px; border-bottom: 1px solid var(--line);
+    position:sticky; top:0; background:var(--surface);
+  }
+  thead th:first-child, tbody td:first-child{ text-align:left; }
+  tbody td{ text-align:right; padding: 7px 10px; font-family: var(--mono); font-size:12.5px; border-bottom: 1px solid rgba(42,49,60,0.5); }
+  tbody tr:hover{ background: var(--surface-2); }
+  tbody tr.summary{ background: var(--surface-2); font-weight:600; }
+  tbody tr.summary td{ border-top: 1.5px solid var(--line); border-bottom:none; color: var(--text); }
+  td.lapcol{ font-family: var(--sans); font-weight:600; }
+  .partial-badge{
+    display:inline-block; font-family: var(--sans); font-size:9.5px; font-weight:600;
+    color: var(--sage); border:1px solid rgba(143,191,159,0.4); border-radius: 20px;
+    padding: 1px 6px; margin-left:6px; vertical-align:1px;
+  }
+  footer.note{ color: var(--muted); font-size: 11.5px; text-align:center; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="dropzone">
+    <div class="icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b93a3" stroke-width="1.6"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+    </div>
+    <h1>Drop in a lap split</h1>
+    <p>Drag a Garmin lap-split CSV here — the per-lap export with pace, HR, power<br>and running-dynamics columns. One file, one run.</p>
+    <label id="filepick" for="filein">Choose file</label>
+    <input type="file" id="filein" accept=".csv">
+    <div id="err"></div>
+  </div>
+
+  <div id="dash">
+    <header class="top">
+      <div>
+        <h1>Run splits</h1>
+        <div class="sub" id="filemeta"></div>
+      </div>
+      <button id="newfile">Load a different file</button>
+    </header>
+
+    <div class="hero" id="hero"></div>
+
+    <div class="card">
+      <h2>Pace &amp; heart rate by lap</h2>
+      <div class="cardsub">Bars: average pace per lap (faster = taller) · Line: average HR per lap</div>
+      <div class="chart-holder"><canvas id="chartPaceHr"></canvas></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="card">
+        <h2>Power &amp; cadence</h2>
+        <div class="cardsub">Avg power (W) vs avg run cadence (spm)</div>
+        <div class="chart-holder"><canvas id="chartPowerCad"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Running dynamics</h2>
+        <div class="cardsub">Ground contact time (ms) vs vertical oscillation (cm)</div>
+        <div class="chart-holder"><canvas id="chartDynamics"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Elevation per lap</h2>
+      <div class="cardsub">Ascent vs descent, meters</div>
+      <div class="chart-holder" style="height:180px;"><canvas id="chartElev"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Full lap table</h2>
+      <div class="cardsub">Every column from the export, as recorded</div>
+      <div class="table-scroll">
+        <table id="datatable"></table>
+      </div>
+    </div>
+
+    <footer class="note">Laps under ~0.9 of the modal lap distance are flagged as partial — a manual split rather than an auto km marker.</footer>
+  </div>
+
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const filein = document.getElementById('filein');
+const filepick = document.getElementById('filepick');
+const errBox = document.getElementById('err');
+const dash = document.getElementById('dash');
+
+['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+filein.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); });
+document.getElementById('newfile').addEventListener('click', () => {
+  dash.style.display = 'none';
+  dropzone.style.display = 'block';
+  errBox.style.display = 'none';
+});
+
+function handleFile(file){
+  errBox.style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const rows = parseCSV(e.target.result);
+      render(rows, file.name);
+    }catch(err){
+      errBox.textContent = 'Could not parse that file: ' + err.message;
+      errBox.style.display = 'block';
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ---- CSV parsing (quoted fields, commas inside quotes) ----
+function parseCSV(text){
+  const lines = text.split(/\r\n|\n/).filter(l => l.trim().length);
+  const rows = lines.map(line => {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i=0;i<line.length;i++){
+      const c = line[i];
+      if (c === '"'){
+        if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ){
+        out.push(cur); cur = '';
+      } else cur += c;
+    }
+    out.push(cur);
+    return out;
+  });
+  const header = rows[0];
+  return rows.slice(1).map(r => {
+    const obj = {};
+    header.forEach((h,i) => obj[h] = r[i] !== undefined ? r[i] : '');
+    return obj;
+  });
+}
+
+// ---- value helpers ----
+function num(v){
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  if (s === '' || s === '--') return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function timeToSec(v){
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  if (s === '' || s === '--') return null;
+  const parts = s.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 2) return parts[0]*60 + parts[1];
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+  return null;
+}
+function secToClock(sec, showHours){
+  if (sec === null) return '--';
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
+  const s = Math.round(sec%60);
+  const mm = (h>0 ? String(m).padStart(2,'0') : String(m));
+  const ss = String(s).padStart(2,'0');
+  if (h>0 || showHours) return `${h}:${mm}:${ss}`;
+  return `${mm}:${ss}`;
+}
+function paceLabel(sec){
+  if (sec === null) return '--';
+  const m = Math.floor(sec/60);
+  const s = Math.round(sec%60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+const COLORS = { amber:'#f0a868', coral:'#e2665f', blue:'#6fa3d6', sage:'#8fbf9f', muted:'#8b93a3', line:'#2a313c', text:'#eae7df' };
+
+let charts = [];
+function destroyCharts(){ charts.forEach(c => c.destroy()); charts = []; }
+
+function render(rawRows, filename){
+  const summary = rawRows.find(r => String(r['Laps']).trim().toLowerCase() === 'summary');
+  const laps = rawRows.filter(r => String(r['Laps']).trim().toLowerCase() !== 'summary');
+  if (!laps.length) throw new Error('no lap rows found');
+
+  // modal distance to flag partial/manual laps
+  const dists = laps.map(r => num(r['Distance km'])).filter(d => d !== null);
+  const counts = {};
+  dists.forEach(d => { const k = Math.round(d*100)/100; counts[k] = (counts[k]||0)+1; });
+  const modal = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
+  const modalVal = modal !== undefined ? parseFloat(modal) : null;
+
+  dropzone.style.display = 'none';
+  dash.style.display = 'block';
+  document.getElementById('filemeta').textContent =
+    `${filename} · ${laps.length} laps · ${summary ? summary['Distance km']+' km total' : ''}`;
+
+  destroyCharts();
+  renderHero(summary, laps);
+  renderTable(laps, summary);
+  renderPaceHr(laps, modalVal);
+  renderPowerCad(laps);
+  renderDynamics(laps);
+  renderElev(laps);
+}
+
+function renderHero(summary, laps){
+  const hero = document.getElementById('hero');
+  if (!summary){ hero.innerHTML = ''; return; }
+  const cells = [
+    { label:'Total distance', val:summary['Distance km'], unit:'km' },
+    { label:'Total time', val:secToClock(timeToSec(summary['Time']), true) },
+    { label:'Avg pace', val:summary['Avg Pace min/km'], unit:'/km', accent:'accent-pace' },
+    { label:'Avg HR / Max HR', val:`${summary['Avg HR bpm']} / ${summary['Max HR bpm']}`, unit:'bpm', accent:'accent-hr' },
+    { label:'Avg power', val:summary['Avg Power W'], unit:'W', accent:'accent-power' },
+    { label:'Calories', val:summary['Calories C'], unit:'C' },
+  ];
+  hero.innerHTML = cells.map(c => `
+    <div class="cell ${c.accent||''}">
+      <div class="label">${c.label}</div>
+      <div class="val">${c.val ?? '--'}${c.unit ? `<span class="unit">${c.unit}</span>`:''}</div>
+    </div>`).join('');
+}
+
+function renderTable(laps, summary){
+  const cols = ['Laps','Time','Cumulative Time','Distance km','Avg Pace min/km','Avg GAP min/km',
+    'Avg HR bpm','Max HR bpm','Total Ascent m','Total Descent m','Avg Power W','Avg W/kg',
+    'Max Power W','Max W/kg','Avg Run Cadence spm','Max Run Cadence spm','Avg Ground Contact Time ms',
+    'Avg GCT Balance %','Avg Stride Length m','Avg Vertical Oscillation cm','Avg Vertical Ratio %',
+    'Calories C','Avg Temperature','Best Pace min/km','Moving Time','Avg Moving Pace min/km',
+    'Avg Step Speed Loss cm/s','Avg Step Speed Loss Percent %'];
+  const present = cols.filter(c => laps[0].hasOwnProperty(c));
+
+  const dists = laps.map(r => num(r['Distance km']));
+  const modal = (() => {
+    const counts = {};
+    dists.filter(d=>d!==null).forEach(d => { const k = Math.round(d*100)/100; counts[k]=(counts[k]||0)+1; });
+    const top = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
+    return top !== undefined ? parseFloat(top) : null;
+  })();
+
+  let html = '<thead><tr>' + present.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  laps.forEach(r => {
+    const d = num(r['Distance km']);
+    const isPartial = modal !== null && d !== null && d < modal*0.9;
+    html += '<tr>' + present.map((c,i) => {
+      const v = r[c] ?? '--';
+      if (i===0) return `<td class="lapcol">${v}${isPartial ? '<span class="partial-badge">partial</span>':''}</td>`;
+      return `<td>${v}</td>`;
+    }).join('') + '</tr>';
+  });
+  if (summary){
+    html += '<tr class="summary">' + present.map((c,i) => `<td${i===0?' class="lapcol"':''}>${summary[c] ?? '--'}</td>`).join('') + '</tr>';
+  }
+  html += '</tbody>';
+  document.getElementById('datatable').innerHTML = html;
+}
+
+function baseGridOpts(){
+  return {
+    scales: {
+      x: { ticks:{ color: COLORS.muted, font:{size:11} }, grid:{ color:'rgba(42,49,60,0.6)' } }
+    },
+    plugins: { legend: { labels: { color: COLORS.text, font:{size:11.5}, usePointStyle:true } } }
+  };
+}
+
+function renderPaceHr(laps, modalVal){
+  const labels = laps.map(r => `L${r['Laps']}` + (modalVal!==null && num(r['Distance km'])!==null && num(r['Distance km'])<modalVal*0.9 ? '*' : ''));
+  const paceSec = laps.map(r => timeToSec(r['Avg Pace min/km']));
+  const hr = laps.map(r => num(r['Avg HR bpm']));
+  const ctx = document.getElementById('chartPaceHr');
+  const c = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'bar', label:'Avg pace (min/km)', data: paceSec, backgroundColor:'rgba(240,168,104,0.55)', borderColor: COLORS.amber, borderWidth:1, borderRadius:4, yAxisID:'yPace', order:2 },
+        { type:'line', label:'Avg HR (bpm)', data: hr, borderColor: COLORS.coral, backgroundColor: COLORS.coral, pointRadius:3, tension:0.3, yAxisID:'yHr', order:1 }
+      ]
+    },
+    options: {
+      ...baseGridOpts(),
+      scales: {
+        ...baseGridOpts().scales,
+        yPace: { reverse:true, position:'left', ticks:{ color: COLORS.amber, callback:(v)=>paceLabel(v) }, grid:{ color:'rgba(42,49,60,0.6)' }, title:{display:true,text:'pace (min/km)',color:COLORS.muted,font:{size:11}} },
+        yHr: { position:'right', ticks:{ color: COLORS.coral }, grid:{ display:false }, title:{display:true,text:'bpm',color:COLORS.muted,font:{size:11}} }
+      },
+      plugins: {
+        ...baseGridOpts().plugins,
+        tooltip: { callbacks: { label: (ctx) => {
+          if (ctx.dataset.label.includes('pace')) return `Avg pace: ${paceLabel(ctx.raw)} /km`;
+          return `Avg HR: ${ctx.raw} bpm`;
+        }}}
+      },
+      maintainAspectRatio:false
+    }
+  });
+  charts.push(c);
+}
+
+function renderPowerCad(laps){
+  const labels = laps.map(r => `L${r['Laps']}`);
+  const power = laps.map(r => num(r['Avg Power W']));
+  const cad = laps.map(r => num(r['Avg Run Cadence spm']));
+  const c = new Chart(document.getElementById('chartPowerCad'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Avg power (W)', data: power, borderColor: COLORS.blue, backgroundColor: COLORS.blue, tension:0.3, pointRadius:3, yAxisID:'y1' },
+      { label:'Avg cadence (spm)', data: cad, borderColor: COLORS.sage, backgroundColor: COLORS.sage, tension:0.3, pointRadius:3, yAxisID:'y2' }
+    ]},
+    options:{
+      ...baseGridOpts(),
+      scales:{ ...baseGridOpts().scales,
+        y1:{ position:'left', ticks:{color:COLORS.blue}, grid:{color:'rgba(42,49,60,0.6)'} },
+        y2:{ position:'right', ticks:{color:COLORS.sage}, grid:{display:false} }
+      },
+      maintainAspectRatio:false
+    }
+  });
+  charts.push(c);
+}
+
+function renderDynamics(laps){
+  const labels = laps.map(r => `L${r['Laps']}`);
+  const gct = laps.map(r => num(r['Avg Ground Contact Time ms']));
+  const vo = laps.map(r => num(r['Avg Vertical Oscillation cm']));
+  const c = new Chart(document.getElementById('chartDynamics'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'GCT (ms)', data: gct, borderColor: COLORS.amber, backgroundColor: COLORS.amber, tension:0.3, pointRadius:3, yAxisID:'y1' },
+      { label:'Vertical osc. (cm)', data: vo, borderColor: COLORS.coral, backgroundColor: COLORS.coral, tension:0.3, pointRadius:3, yAxisID:'y2' }
+    ]},
+    options:{
+      ...baseGridOpts(),
+      scales:{ ...baseGridOpts().scales,
+        y1:{ position:'left', ticks:{color:COLORS.amber}, grid:{color:'rgba(42,49,60,0.6)'} },
+        y2:{ position:'right', ticks:{color:COLORS.coral}, grid:{display:false} }
+      },
+      maintainAspectRatio:false
+    }
+  });
+  charts.push(c);
+}
+
+function renderElev(laps){
+  const labels = laps.map(r => `L${r['Laps']}`);
+  const asc = laps.map(r => num(r['Total Ascent m']));
+  const desc = laps.map(r => num(r['Total Descent m']));
+  const c = new Chart(document.getElementById('chartElev'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Ascent (m)', data: asc, backgroundColor:'rgba(143,191,159,0.65)', borderColor:COLORS.sage, borderWidth:1, borderRadius:3 },
+      { label:'Descent (m)', data: desc.map(d => d===null?null:-d), backgroundColor:'rgba(226,102,95,0.55)', borderColor:COLORS.coral, borderWidth:1, borderRadius:3 }
+    ]},
+    options:{
+      ...baseGridOpts(),
+      scales:{ ...baseGridOpts().scales,
+        y:{ ticks:{ color: COLORS.muted, callback:(v)=>Math.abs(v) }, grid:{ color:'rgba(42,49,60,0.6)' } }
+      },
+      plugins:{ ...baseGridOpts().plugins, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${Math.abs(ctx.raw)} m` } } },
+      maintainAspectRatio:false
+    }
+  });
+  charts.push(c);
+}
+</script>
+</body>
+</html>
