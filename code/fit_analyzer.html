@@ -2010,14 +2010,16 @@ function paceFromSpeed(speedMs) {
 
 function formatPace(p) {
   if (p == null || !isFinite(p)) return '--:--';
-  const mins = Math.floor(p);
-  const secs = Math.round((p - mins) * 60);
+  let totalSecs = Math.round(p * 60);
+  let mins = Math.floor(totalSecs / 60);
+  let secs = totalSecs % 60;
   return mins + ':' + String(secs).padStart(2, '0');
 }
 
 function formatDuration(sec) {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
+  let totalSecs = Math.round(sec);
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
   return m + ':' + String(s).padStart(2, '0');
 }
 
