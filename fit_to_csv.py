@@ -39,11 +39,29 @@ def _build_normalized_row(data: dict, fields: dict) -> dict:
         A dictionary with normalized values for the CSV writer.
     """
     row = {name: _normalize_value(data, src) for name, src in fields.items()}
+    get_true_cadence(data, row)
+    return row
+
+def get_true_cadence(data, row):
+    """Calculate the true cadence from the FIT record.
+    Args:
+        data: A dictionary containing raw field names and values from one FIT
+            record frame.
+        row: A dictionary with normalized values for the CSV writer.
+
+    Returns:
+        None. The row dictionary is modified in place to include the true cadence.
+
+    Garmin records just one leg's cadence in the 'cadence' field, and any fractional 
+    cadence in the 'fractional_cadence' field. The true cadence is the sum of these two values, 
+    multiplied by 2 to account for both legs. 
+    
+        
+    """
     cadence = row.get("cadence")
     fractional_cadence = data.get("fractional_cadence")
     if cadence is not None:
         row["cadence"] = (cadence + fractional_cadence) * 2
-    return row
 
 
 def convert_fit_to_csv(input_file, output_file):
@@ -121,7 +139,7 @@ def build_path(file, is_output: bool) -> str:
 
 if __name__ == "__main__":
     """Run the conversion using the default example data file."""
-    input_file = "2026-08-31.fit"
+    input_file = "2026-08-09-pb.fit"
     output_file = f"{input_file.rsplit('.', 1)[0]}-fit.csv"
     input_file = build_path(input_file, False)
     output_file = build_path(output_file, True)
