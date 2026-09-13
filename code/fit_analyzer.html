@@ -1996,7 +1996,9 @@ function parseCsv(text) {
       speed: Number(r.speed) || 0,
       hr: Number(r.heart_rate) || null,
       spm: Number(r.cadence) || null,
-      distance: Number(r.distance) || 0
+      distance: Number(r.distance) || 0,
+      contactTime: r.contact_time != null ? Number(r.contact_time) : null,
+      stepLength: r.step_length != null ? Number(r.step_length) : null
     }))
     .filter(r => !isNaN(r.t.getTime()));
   if (!rows.length) throw new Error('no usable rows found');
@@ -2044,6 +2046,8 @@ function computeKmSplits(rows) {
     const pace = distKm > 0 ? (durSec / 60) / distKm : null;
     const hrs = seg.map(r => r.hr).filter(v => v != null && v > 0);
     const spms = seg.map(r => r.spm).filter(v => v != null && v > 0);
+    const gcts = seg.map(r => r.contactTime).filter(v => v != null && v > 0);
+    const strides = seg.map(r => r.stepLength).filter(v => v != null && v > 0);
     const cumSec = (seg[seg.length - 1].t - t0) / 1000;
     splits.push({
       km: i + 1,
@@ -2052,7 +2056,9 @@ function computeKmSplits(rows) {
       pace,
       avgHr: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null,
       avgSpm: spms.length ? spms.reduce((a, b) => a + b, 0) / spms.length : null,
-      sdSpm: stddev(spms)
+      sdSpm: stddev(spms),
+      avgGct: gcts.length ? gcts.reduce((a, b) => a + b, 0) / gcts.length : null,
+      avgStride: strides.length ? strides.reduce((a, b) => a + b, 0) / strides.length : null
     });
   }
   return splits;
@@ -2117,6 +2123,8 @@ function render() {
     '<th>HR' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>HR (B)</th>' : '') +
     '<th>Cadence' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>Cadence (B)</th>' : '') +
     '<th>Cadence SD' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>Cadence SD (B)</th>' : '') +
+    '<th>Ground Contact' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>Ground Contact (B)</th>' : '') +
+    '<th>Stride Length' + (b ? ' (A)' : '') + '</th>' + (b ? '<th>Stride Length (B)</th>' : '') +
     '</tr></thead><tbody>';
   const numRows = Math.max(splitsA.length, splitsB ? splitsB.length : 0);
   for (let i = 0; i < numRows; i++) {
@@ -2131,9 +2139,16 @@ function render() {
     if (b) html += '<td>' + (sb && sb.avgSpm ? sb.avgSpm.toFixed(1) : '--') + '</td>';
     html += '<td>' + (sa && sa.sdSpm != null ? sa.sdSpm.toFixed(2) : '--') + '</td>';
     if (b) html += '<td>' + (sb && sb.sdSpm != null ? sb.sdSpm.toFixed(2) : '--') + '</td>';
+    html += '<td>' + (sa && sa.avgGct != null ? Math.round(sa.avgGct) + ' ms' : '--') + '</td>';
+    if (b) html += '<td>' + (sb && sb.avgGct != null ? Math.round(sb.avgGct) + ' ms' : '--') + '</td>';
+    html += '<td>' + (sa && sa.avgStride != null ? sa.avgStride.toFixed(2) + ' m' : '--') + '</td>';
+    if (b) html += '<td>' + (sb && sb.avgStride != null ? sb.avgStride.toFixed(2) + ' m' : '--') + '</td>';
     html += '</tr>';
   }
   html += '</tbody></table>';
+
+  const hasGct = splitsA.some(s => s.avgGct != null) || (splitsB && splitsB.some(s => s.avgGct != null));
+  const hasStride = splitsA.some(s => s.avgStride != null) || (splitsB && splitsB.some(s => s.avgStride != null));
 
   // Chart blocks: pace, HR, cadence per km (bar), plus full-run line charts
   html += chartBlock('kmPace', 'Pace per km (min/km)');
@@ -2141,6 +2156,8 @@ function render() {
   html += chartBlock('kmSpm', 'Cadence per km (spm)');
   html += chartBlock('kmSpmSd', 'Cadence variability per km (std dev, spm)');
   html += chartBlock('hrVsPace', 'Heart rate vs pace (per km)');
+  if (hasGct) html += chartBlock('kmGct', 'Ground contact time per km (ms)');
+  if (hasStride) html += chartBlock('kmStride', 'Stride length per km (m)');
   html += chartBlock('linePace', 'Pace over full run');
   html += chartBlock('lineHr', 'Heart rate over full run');
   html += chartBlock('lineSpm', 'Cadence over full run');
@@ -2153,6 +2170,8 @@ function render() {
   buildBarChart('kmSpm', splitsA.map(s => s.km), splitsA.map(s => s.avgSpm ? round2(s.avgSpm) : null), splitsB ? splitsB.map(s => s.avgSpm ? round2(s.avgSpm) : null) : null, {});
   buildBarChart('kmSpmSd', splitsA.map(s => s.km), splitsA.map(s => s.sdSpm != null ? round2(s.sdSpm) : null), splitsB ? splitsB.map(s => s.sdSpm != null ? round2(s.sdSpm) : null) : null, {});
   buildScatterChart('hrVsPace', splitsA, splitsB);
+  if (hasGct) buildBarChart('kmGct', splitsA.map(s => s.km), splitsA.map(s => s.avgGct != null ? Math.round(s.avgGct) : null), splitsB ? splitsB.map(s => s.avgGct != null ? Math.round(s.avgGct) : null) : null, {});
+  if (hasStride) buildBarChart('kmStride', splitsA.map(s => s.km), splitsA.map(s => s.avgStride != null ? round2(s.avgStride) : null), splitsB ? splitsB.map(s => s.avgStride != null ? round2(s.avgStride) : null) : null, {});
 
   buildLineChart('linePace', a.rows, r => paceFromSpeed(r.speed), b ? b.rows : null, { min: 0 });
   buildLineChart('lineHr', a.rows, r => r.hr, b ? b.rows : null, {});
@@ -2236,28 +2255,27 @@ function buildScatterChart(id, splitsA, splitsB) {
 }
 
 function buildLineChart(id, rowsA, extractFn, rowsB, opts) {
-  // x-axis is elapsed seconds since run start (both files are ~1Hz samples),
-  // so two runs of different pace/length still line up by time-in-run rather
-  // than by distance (which would misalign point-for-point).
-  const t0A = rowsA[0].t.getTime();
-  const dataA = rowsA.map(r => ({ x: Math.round((r.t.getTime() - t0A) / 1000), y: (() => { const v = extractFn(r); return v == null ? null : round2(v); })() }));
+  // x-axis is distance in km since run start, with a gridline/tick at each
+  // whole km, so two runs of different length still line up by distance
+  // covered rather than by elapsed time.
+  const dataA = rowsA.map(r => ({ x: round2(r.distance / 1000), y: (() => { const v = extractFn(r); return v == null ? null : round2(v); })() }));
   const datasets = [{ data: dataA, borderColor: COLORS.A, borderWidth: 1.5, pointRadius: 0, tension: 0.2, parsing: false }];
-  let maxSec = dataA.length ? dataA[dataA.length - 1].x : 0;
+  let maxKm = dataA.length ? dataA[dataA.length - 1].x : 0;
   if (rowsB) {
-    const t0B = rowsB[0].t.getTime();
-    const dataB = rowsB.map(r => ({ x: Math.round((r.t.getTime() - t0B) / 1000), y: (() => { const v = extractFn(r); return v == null ? null : round2(v); })() }));
-    maxSec = Math.max(maxSec, dataB.length ? dataB[dataB.length - 1].x : 0);
+    const dataB = rowsB.map(r => ({ x: round2(r.distance / 1000), y: (() => { const v = extractFn(r); return v == null ? null : round2(v); })() }));
+    maxKm = Math.max(maxKm, dataB.length ? dataB[dataB.length - 1].x : 0);
     datasets.push({ data: dataB, borderColor: COLORS.B, borderWidth: 1.5, pointRadius: 0, tension: 0.2, parsing: false });
   }
   const opt = baseOptions(opts);
   opt.scales.x = Object.assign({}, opt.scales.x, {
     type: 'linear',
     min: 0,
-    max: maxSec,
+    max: Math.ceil(maxKm),
     ticks: Object.assign({}, opt.scales.x.ticks, {
+      stepSize: 1,
+      maxTicksLimit: undefined,
       callback: function(val) {
-        const m = Math.floor(val / 60), s = Math.round(val % 60);
-        return m + ':' + String(s).padStart(2, '0');
+        return 'km' + val;
       }
     })
   });
