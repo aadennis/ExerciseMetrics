@@ -224,7 +224,7 @@ for lap in laps:
     lap["vr_pct"] = round(mean(lap["vertical_ratio_vals"]), 2) \
         if lap["vertical_ratio_vals"] else None
 
-    lap["step_mm"] = round(mean(lap["step_length_vals"]), 1) \
+    lap["step_mtr"] = round(mean(lap["step_length_vals"])/1000, 2) \
         if lap["step_length_vals"] else None
 
     lap["cadence"] = round(mean(lap["cadence_vals"]), 1) \
@@ -249,7 +249,7 @@ with open(output_csv, "w", newline="", encoding="utf-8") as f:
             "gct_ms",
             "vert_osc_mm",
             "vert_ratio_pct",
-            "step_length_mm",
+            "step_length_mtr",
         ]
     )
 
@@ -266,7 +266,7 @@ with open(output_csv, "w", newline="", encoding="utf-8") as f:
                 lap["gct_ms"],
                 lap["vo_mm"],
                 lap["vr_pct"],
-                lap["step_mm"],
+                lap["step_mtr"],
             ]
         )
 
