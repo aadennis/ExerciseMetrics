@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interval Dynamics Viewer</title>
+<style>
+  :root {
+    --bg: #12151b;
+    --card: #1a1f27;
+    --card-hi: #1e2530;
+    --border: #2a313c;
+    --text: #eae7df;
+    --text-dim: #8b93a1;
+    --amber: #f0a868;
+    --amber-dim: #6b512f;
+    --coral: #e2665f;
+    --coral-dim: #5c332f;
+    --blue: #5fa8e2;
+    --blue-dim: #2f4a63;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 28px;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* ---------- Dropzone ---------- */
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 80px 30px;
+    text-align: center;
+    color: var(--text-dim);
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+  }
+  #dropzone.hover {
+    border-color: var(--amber);
+    background: rgba(240, 168, 104, 0.05);
+  }
+  #dropzone h2 { color: var(--text); margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+  #dropzone p { margin: 4px 0; font-size: 14px; }
+  #dropzone .hint { font-size: 12px; margin-top: 18px; opacity: 0.7; }
+  #filepicker { display: none; }
+
+  /* ---------- Header ---------- */
+  #dashboard { display: none; }
+
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  header.top h1 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
+  header.top .meta { color: var(--text-dim); font-size: 13px; }
+  #reload-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #reload-btn:hover { color: var(--text); border-color: var(--amber); }
+
+  /* ---------- Hero strip ---------- */
+  .hero {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 14px;
+  }
+  .stat .label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .stat .value { font-size: 22px; font-weight: 600; }
+  .stat .value .unit { font-size: 13px; font-weight: 400; color: var(--text-dim); margin-left: 3px; }
+  .stat.accent-amber .value { color: var(--amber); }
+  .stat.accent-coral .value { color: var(--coral); }
+  .stat.accent-blue .value { color: var(--blue); }
+
+  /* ---------- Chart grid ---------- */
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 16px 8px;
+  }
+  .panel h3 {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .panel .sub {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .panel .canvas-wrap { position: relative; height: 220px; }
+  .panel .chart-error {
+    color: var(--coral);
+    font-size: 12px;
+    padding: 20px 0;
+    text-align: center;
+  }
+
+  /* ---------- Table ---------- */
+  .table-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    overflow-x: auto;
+  }
+  .table-panel h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 820px; }
+  thead th {
+    text-align: right;
+    padding: 8px 10px;
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  thead th:first-child, thead th:nth-child(2) { text-align: left; }
+  tbody td {
+    text-align: right;
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(42, 49, 60, 0.5);
+    white-space: nowrap;
+  }
+  tbody td:first-child, tbody td:nth-child(2) { text-align: left; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody tr.row-warmup { opacity: 0.75; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-active { background: var(--coral-dim); color: var(--coral); }
+  .badge-recovery { background: var(--blue-dim); color: var(--blue); }
+  .badge-warmup { background: #2a2f38; color: var(--text-dim); }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: repeat(3, 1fr); }
+    .charts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .hero { grid-template-columns: repeat(2, 1fr); }
+    body { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="dropzone">
+    <h2>Drop your interval CSV here</h2>
+    <p>Garmin interval/dynamics export — distance, time, HR, cadence, GCT, vertical oscillation, vertical ratio, step length</p>
+    <p class="hint">or click to browse</p>
+    <input type="file" id="filepicker" accept=".csv">
+  </div>
+
+  <div id="dashboard">
+    <header class="top">
+      <div>
+        <h1 id="run-title">Interval Session</h1>
+        <div class="meta" id="run-meta"></div>
+      </div>
+      <button id="reload-btn">Load a different file</button>
+    </header>
+
+    <div class="hero" id="hero"></div>
+
+    <div class="charts">
+      <div class="panel">
+        <h3>Pace per rep</h3>
+        <p class="sub">Active reps only — taller bar is faster</p>
+        <div class="canvas-wrap"><canvas id="chartPace"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Heart rate through the session</h3>
+        <p class="sub">Every segment, warmup to final recovery</p>
+        <div class="canvas-wrap"><canvas id="chartHR"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Ground contact time &amp; vertical oscillation</h3>
+        <p class="sub">Active reps — form under fatigue</p>
+        <div class="canvas-wrap"><canvas id="chartDynamics1"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Vertical ratio &amp; step length</h3>
+        <p class="sub">Active reps — efficiency signals</p>
+        <div class="canvas-wrap"><canvas id="chartDynamics2"></canvas></div>
+      </div>
+    </div>
+
+    <div class="table-panel">
+      <h3>Full segment data</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Rep</th>
+            <th>Type</th>
+            <th>Distance</th>
+            <th>Time</th>
+            <th>Pace</th>
+            <th>Avg HR</th>
+            <th>Cadence</th>
+            <th>GCT</th>
+            <th>Vert Osc</th>
+            <th>Vert Ratio</th>
+            <th>Step Length</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+  // ---------- helpers ----------
+  function num(v) {
+    if (v === undefined || v === null) return null;
+    const n = parseFloat(String(v).trim());
+    return isNaN(n) ? null : n;
+  }
+
+  function fmtTime(totalSec) {
+    if (totalSec == null) return '--';
+    totalSec = Math.round(totalSec);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function fmtPace(minPerKm) {
+    if (minPerKm == null || !isFinite(minPerKm)) return '--';
+    const totalSec = minPerKm * 60;
+    const m = Math.floor(totalSec / 60);
+    const s = Math.round(totalSec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function safeChart(canvasId, label, fn) {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`[${label}] chart failed:`, err);
+      const canvas = document.getElementById(canvasId);
+      if (canvas && canvas.parentElement) {
+        canvas.parentElement.innerHTML = `<div class="chart-error">Couldn't render this chart (${label}). Check the console for details.</div>`;
+      }
+    }
+  }
+
+  // Quote-aware CSV parser: walks the string character by character so
+  // commas inside quoted fields don't get treated as delimiters.
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+
+    const pushField = () => { row.push(field); field = ''; };
+    const pushRow = () => { rows.push(row); row = []; };
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') pushField();
+        else if (c === '\n') { pushField(); pushRow(); }
+        else if (c === '\r') { /* skip, \n handles the row break */ }
+        else field += c;
+      }
+    }
+    if (field.length || row.length) { pushField(); pushRow(); }
+
+    const cleaned = rows.filter(r => r.length > 1 || (r.length === 1 && r[0].trim() !== ''));
+    if (!cleaned.length) return [];
+    const header = cleaned[0].map(h => h.trim());
+    return cleaned.slice(1).map(r => {
+      const obj = {};
+      header.forEach((h, idx) => obj[h] = (r[idx] !== undefined ? r[idx].trim() : ''));
+      return obj;
+    });
+  }
+
+  // ---------- charts registry (so we can destroy on reload) ----------
+  const chartInstances = [];
+  function destroyCharts() {
+    chartInstances.forEach(c => { try { c.destroy(); } catch (e) {} });
+    chartInstances.length = 0;
+  }
+
+  const COLORS = {
+    amber: '#f0a868',
+    coral: '#e2665f',
+    blue: '#5fa8e2',
+    grid: 'rgba(255,255,255,0.06)',
+    textDim: '#8b93a1'
+  };
+
+  Chart.defaults.color = COLORS.textDim;
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  Chart.defaults.font.size = 11;
+
+  // ---------- main pipeline ----------
+  function loadFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        processData(e.target.result, file.name);
+      } catch (err) {
+        console.error('Failed to process file:', err);
+        alert('Could not read this file as an interval CSV. Check the console for details.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function processData(text, filename) {
+    const rawRows = parseCSV(text);
+    if (!rawRows.length) throw new Error('No data rows found');
+
+    const rows = rawRows.map(r => {
+      const distance_m = num(r.distance_m);
+      const time_s = num(r.time_s);
+      const pace_min_km = (distance_m && time_s) ? (time_s / 60) / (distance_m / 1000) : null;
+      return {
+        interval: (r.interval || '').trim(),
+        type: (r.type || '').trim(),
+        distance_m, time_s,
+        avg_hr: num(r.avg_hr),
+        cadence: num(r.cadence),
+        gct_ms: num(r.gct_ms),
+        vert_osc_mm: num(r.vert_osc_mm),
+        vert_ratio_pct: num(r.vert_ratio_pct),
+        step_length_mtr: num(r.step_length_mtr),
+        pace_min_km
+      };
+    });
+
+    const activeRows = rows.filter(r => r.type === 'Active');
+    const recoveryRows = rows.filter(r => r.type === 'Recovery');
+
+    const totalDistance = rows.reduce((a, r) => a + (r.distance_m || 0), 0);
+    const totalTime = rows.reduce((a, r) => a + (r.time_s || 0), 0);
+    const activeDist = activeRows.reduce((a, r) => a + (r.distance_m || 0), 0);
+    const activeTime = activeRows.reduce((a, r) => a + (r.time_s || 0), 0);
+    const avgActivePace = activeDist ? (activeTime / 60) / (activeDist / 1000) : null;
+    const weightedHR = totalTime ? rows.reduce((a, r) => a + (r.avg_hr || 0) * (r.time_s || 0), 0) / totalTime : null;
+    const peakHR = rows.length ? Math.max(...rows.map(r => r.avg_hr).filter(v => v != null)) : null;
+    const avgCadenceActive = activeRows.length ? activeRows.reduce((a, r) => a + (r.cadence || 0), 0) / activeRows.length : null;
+
+    renderHeader(filename, rows.length, activeRows.length);
+    renderHero({
+      totalDistance, totalTime, activeReps: activeRows.length,
+      avgActivePace, weightedHR, peakHR, avgCadenceActive
+    });
+    renderTable(rows);
+    renderCharts(rows, activeRows);
+
+    document.getElementById('dropzone').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+  }
+
+  function renderHeader(filename, rowCount, activeCount) {
+    document.getElementById('run-title').textContent = 'Interval Session';
+    document.getElementById('run-meta').textContent =
+      `${filename} · ${activeCount} active reps · ${rowCount} segments`;
+  }
+
+  function renderHero(s) {
+    const cells = [
+      { label: 'Total distance', value: (s.totalDistance / 1000).toFixed(2), unit: 'km', accent: '' },
+      { label: 'Total time', value: fmtTime(s.totalTime), unit: '', accent: '' },
+      { label: 'Active reps', value: s.activeReps, unit: '', accent: '' },
+      { label: 'Avg active pace', value: fmtPace(s.avgActivePace), unit: '/km', accent: 'accent-coral' },
+      { label: 'Avg HR', value: s.weightedHR != null ? Math.round(s.weightedHR) : '--', unit: 'bpm', accent: 'accent-amber' },
+      { label: 'Peak HR', value: s.peakHR != null ? s.peakHR : '--', unit: 'bpm', accent: 'accent-amber' }
+    ];
+    const hero = document.getElementById('hero');
+    hero.innerHTML = cells.map(c => `
+      <div class="stat ${c.accent}">
+        <div class="label">${c.label}</div>
+        <div class="value">${c.value}<span class="unit">${c.unit}</span></div>
+      </div>
+    `).join('');
+  }
+
+  function badgeFor(type) {
+    if (type === 'Active') return `<span class="badge badge-active">Active</span>`;
+    if (type === 'Recovery') return `<span class="badge badge-recovery">Recovery</span>`;
+    return `<span class="badge badge-warmup">${type || '--'}</span>`;
+  }
+
+  function renderTable(rows) {
+    const body = document.getElementById('table-body');
+    body.innerHTML = rows.map(r => `
+      <tr class="${r.type === 'Warmup' ? 'row-warmup' : ''}">
+        <td>${r.interval || '--'}</td>
+        <td>${badgeFor(r.type)}</td>
+        <td>${r.distance_m != null ? r.distance_m.toFixed(0) + ' m' : '--'}</td>
+        <td>${fmtTime(r.time_s)}</td>
+        <td>${r.pace_min_km != null ? fmtPace(r.pace_min_km) + '/km' : '--'}</td>
+        <td>${r.avg_hr != null ? r.avg_hr : '--'}</td>
+        <td>${r.cadence != null ? r.cadence.toFixed(1) : '--'}</td>
+        <td>${r.gct_ms != null ? r.gct_ms.toFixed(0) + ' ms' : '--'}</td>
+        <td>${r.vert_osc_mm != null ? r.vert_osc_mm.toFixed(1) + ' mm' : '--'}</td>
+        <td>${r.vert_ratio_pct != null ? r.vert_ratio_pct.toFixed(2) + '%' : '--'}</td>
+        <td>${r.step_length_mtr != null ? r.step_length_mtr.toFixed(2) + ' m' : '--'}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderCharts(rows, activeRows) {
+    destroyCharts();
+
+    // ---- Pace per rep (active only) ----
+    safeChart('chartPace', 'pace-chart', () => {
+      const labels = activeRows.map(r => r.interval || '');
+      const paceSec = activeRows.map(r => r.pace_min_km != null ? r.pace_min_km * 60 : null);
+      const c = new Chart(document.getElementById('chartPace'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Pace',
+            data: paceSec,
+            backgroundColor: COLORS.coral,
+            borderRadius: 4,
+            maxBarThickness: 28
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => `Pace: ${fmtPace(ctx.parsed.y / 60)}/km` } }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Rep' }, grid: { display: false } },
+            y: {
+              reverse: true,
+              grid: { color: COLORS.grid },
+              ticks: { callback: (v) => fmtPace(v / 60) },
+              title: { display: true, text: 'min/km (taller = faster)' }
+            }
+          }
+        }
+      });
+      chartInstances.push(c);
+    });
+
+    // ---- HR across the whole session ----
+    safeChart('chartHR', 'hr-chart', () => {
+      const labels = rows.map(r => {
+        if (r.type === 'Warmup') return 'W';
+        const tag = r.type === 'Active' ? 'A' : 'R';
+        return `${r.interval}${tag}`;
+      });
+      const hrData = rows.map(r => r.avg_hr);
+      const pointColors = rows.map(r =>
+        r.type === 'Active' ? COLORS.coral : r.type === 'Recovery' ? COLORS.blue : COLORS.textDim
+      );
+      const c = new Chart(document.getElementById('chartHR'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Avg HR',
+            data: hrData,
+            borderColor: COLORS.amber,
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            pointRadius: 3,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            tension: 0.25
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y} bpm` } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 15 } },
+            y: { grid: { color: COLORS.grid }, title: { display: true, text: 'bpm' } }
+          }
+        }
+      });
+      chartInstances.push(c);
+    });
+
+    // ---- GCT + vertical oscillation (active reps) ----
+    safeChart('chartDynamics1', 'dynamics1-chart', () => {
+      const labels = activeRows.map(r => r.interval || '');
+      const c = new Chart(document.getElementById('chartDynamics1'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'GCT (ms)',
+              data: activeRows.map(r => r.gct_ms),
+              borderColor: COLORS.amber,
+              backgroundColor: 'transparent',
+              yAxisID: 'y',
+              tension: 0.25,
+              pointRadius: 3
+            },
+            {
+              label: 'Vert osc (mm)',
+              data: activeRows.map(r => r.vert_osc_mm),
+              borderColor: COLORS.blue,
+              backgroundColor: 'transparent',
+              yAxisID: 'y1',
+              tension: 0.25,
+              pointRadius: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { boxWidth: 10, boxHeight: 10 } } },
+          scales: {
+            x: { title: { display: true, text: 'Rep' }, grid: { display: false } },
+            y: { position: 'left', grid: { color: COLORS.grid }, title: { display: true, text: 'GCT (ms)' } },
+            y1: { position: 'right', grid: { display: false }, title: { display: true, text: 'Vert osc (mm)' } }
+          }
+        }
+      });
+      chartInstances.push(c);
+    });
+
+    // ---- vertical ratio + step length (active reps) ----
+    safeChart('chartDynamics2', 'dynamics2-chart', () => {
+      const labels = activeRows.map(r => r.interval || '');
+      const c = new Chart(document.getElementById('chartDynamics2'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Vert ratio (%)',
+              data: activeRows.map(r => r.vert_ratio_pct),
+              borderColor: COLORS.coral,
+              backgroundColor: 'transparent',
+              yAxisID: 'y',
+              tension: 0.25,
+              pointRadius: 3
+            },
+            {
+              label: 'Step length (m)',
+              data: activeRows.map(r => r.step_length_mtr),
+              borderColor: COLORS.blue,
+              backgroundColor: 'transparent',
+              yAxisID: 'y1',
+              tension: 0.25,
+              pointRadius: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { boxWidth: 10, boxHeight: 10 } } },
+          scales: {
+            x: { title: { display: true, text: 'Rep' }, grid: { display: false } },
+            y: { position: 'left', grid: { color: COLORS.grid }, title: { display: true, text: 'Vert ratio (%)' } },
+            y1: { position: 'right', grid: { display: false }, title: { display: true, text: 'Step length (m)' } }
+          }
+        }
+      });
+      chartInstances.push(c);
+    });
+  }
+
+  // ---------- wiring: drag & drop + click-to-browse ----------
+  const dropzone = document.getElementById('dropzone');
+  const filepicker = document.getElementById('filepicker');
+
+  dropzone.addEventListener('click', () => filepicker.click());
+  filepicker.addEventListener('change', (e) => {
+    if (e.target.files[0]) loadFile(e.target.files[0]);
+  });
+
+  ['dragover', 'dragenter'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('hover'); })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('hover'); })
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  document.getElementById('reload-btn').addEventListener('click', () => {
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('dropzone').style.display = 'block';
+    filepicker.value = '';
+  });
+</script>
+</body>
+</html>
