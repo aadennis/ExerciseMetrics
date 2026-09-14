@@ -39,6 +39,35 @@ with fitdecode.FitReader(input_file) as fit:
             )
 
 # ------------------------------------------------------------------
+# Read workout definition
+# ------------------------------------------------------------------
+
+workout_steps = []
+
+with fitdecode.FitReader(input_file) as fit:
+
+    for frame in fit:
+
+        if (
+            isinstance(frame, fitdecode.FitDataMessage)
+            and frame.name == "workout_step"
+        ):
+
+            vals = {f.name: f.value for f in frame.fields}
+
+            workout_steps.append(vals)
+
+print("\nWorkout Steps Found:")
+for i, step in enumerate(workout_steps):
+    print(
+        i,
+        step.get("intensity"),
+        step.get("duration_type"),
+        step.get("duration_distance"),
+        step.get("repeat_steps"),
+    )            
+
+# ------------------------------------------------------------------
 # Calculate lap end times
 # ------------------------------------------------------------------
 
@@ -48,26 +77,62 @@ for i in range(len(laps) - 1):
 laps[-1]["end"] = None
 
 # ------------------------------------------------------------------
-# Classify intervals
+# Build lap sequence from workout definition
+# ------------------------------------------------------------------
+
+lap_types = []
+
+for step in workout_steps:
+
+    intensity = step.get("intensity")
+    repeat_steps = step.get("repeat_steps")
+
+    if intensity == "warmup":
+        lap_types.append("Warmup")
+
+    elif intensity == "active":
+        active_step = "Active"
+
+    elif intensity == "recovery":
+        recovery_step = "Recovery"
+
+    elif repeat_steps is not None:
+
+        for _ in range(repeat_steps):
+            lap_types.append(active_step)
+            lap_types.append(recovery_step)
+
+# ------------------------------------------------------------------
+# Apply classifications
+# ------------------------------------------------------------------
+
+if len(lap_types) != len(laps):
+    print(
+        f"WARNING: Workout definition generated "
+        f"{len(lap_types)} lap types but file contains "
+        f"{len(laps)} laps"
+    )
+
+for lap, lap_type in zip(laps, lap_types):
+
+    lap["type"] = lap_type
+
+# ------------------------------------------------------------------
+# Assign interval numbers
 # ------------------------------------------------------------------
 
 interval_no = 0
 
 for lap in laps:
 
-    d = lap["distance"]
-
-    if d > 350:
-        lap["type"] = "Warmup"
+    if lap["type"] == "Warmup":
         lap["interval"] = ""
 
-    elif d > 175:
+    elif lap["type"] == "Active":
         interval_no += 1
-        lap["type"] = "Active"
         lap["interval"] = interval_no
 
-    else:
-        lap["type"] = "Recovery"
+    elif lap["type"] == "Recovery":
         lap["interval"] = interval_no
 
 # ------------------------------------------------------------------
