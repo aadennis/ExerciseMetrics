@@ -2,7 +2,7 @@ import csv
 from statistics import mean
 import fitdecode
 
-input_file = r"d:/onedrive/Documents/_ActualDocuments/Exercise/Running/garmin-fit/2026-05-25-intervals.fit"
+input_file = r"d:/onedrive/Documents/_ActualDocuments/Exercise/Running/garmin-fit/2026-09-15-intervals.fit"
 
 output_csv = input_file.replace(".fit", "_dynamics.csv")
 
@@ -11,6 +11,22 @@ output_csv = input_file.replace(".fit", "_dynamics.csv")
 # ------------------------------------------------------------------
 
 laps = []
+
+for frame in fitdecode.FitReader(input_file):
+
+    if (
+        isinstance(frame, fitdecode.FitDataMessage)
+        and frame.name == "record"
+    ):
+
+        vals = {f.name: f.value for f in frame.fields}
+
+        print(
+            vals.get("timestamp"),
+            vals.get("distance")
+        )
+
+        break
 
 with fitdecode.FitReader(input_file) as fit:
 
@@ -35,8 +51,10 @@ with fitdecode.FitReader(input_file) as fit:
                     "distance": dist,
                     "time_s": vals.get("total_timer_time"),
                     "avg_hr": vals.get("avg_heart_rate"),
+                    "wkt_step_index": vals.get("wkt_step_index"),
                 }
             )
+
 
 # ------------------------------------------------------------------
 # Read workout definition
@@ -58,14 +76,40 @@ with fitdecode.FitReader(input_file) as fit:
             workout_steps.append(vals)
 
 print("\nWorkout Steps Found:")
+
 for i, step in enumerate(workout_steps):
-    print(
-        i,
-        step.get("intensity"),
-        step.get("duration_type"),
-        step.get("duration_distance"),
-        step.get("repeat_steps"),
-    )            
+   print(
+    i,
+    "msg=", step.get("message_index"),
+    "intensity=", step.get("intensity"),
+    "duration_step=", step.get("duration_step"),
+    "repeat_steps=", step.get("repeat_steps"),
+    )     
+
+# for i, step in enumerate(workout_steps):
+#     if step.get("repeat_steps") is not None:
+#         print(f"\nSTEP {i}")
+
+#         for k, v in step.items():
+#            print(f"  {k:30s} {v}")
+    
+for step in workout_steps:
+
+    if step.get("duration_step") is not None:
+
+        ref = step["duration_step"]
+
+        print(
+            f"\nRepeat step {step['message_index']} "
+            f"references step {ref}:"
+        )
+
+        print(workout_steps[ref])
+
+for i, lap in enumerate(laps):
+    print(i, lap["wkt_step_index"])
+
+
 
 # ------------------------------------------------------------------
 # Calculate lap end times
