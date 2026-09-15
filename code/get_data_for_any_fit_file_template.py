@@ -1,6 +1,9 @@
 import fitdecode
+from pathlib import Path
+import os
 
-input_file = r"d:/onedrive/Documents/_ActualDocuments/Exercise/Running/garmin-fit/2026-05-25-intervals.fit"
+input_dir = Path(os.environ["garmin-fit-dir"])
+input_file = f"{input_dir}/2026-05-27-intervals.fit"
 
 
 laps = []
