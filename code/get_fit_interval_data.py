@@ -1,9 +1,11 @@
 import csv
-from statistics import mean
+import os
 import fitdecode
+from pathlib import Path
+from statistics import mean
 
-input_file = r"d:/onedrive/Documents/_ActualDocuments/Exercise/Running/garmin-fit/2026-09-15-intervals.fit"
-
+garmin_fit_dir = Path(os.environ["garmin-fit-dir"])
+input_file = f"{garmin_fit_dir}/2026-09-15-intervals.fit"
 output_csv = input_file.replace(".fit", "_dynamics.csv")
 
 # ------------------------------------------------------------------
@@ -120,46 +122,15 @@ for i in range(len(laps) - 1):
 
 laps[-1]["end"] = None
 
-# ------------------------------------------------------------------
-# Build lap sequence from workout definition
-# ------------------------------------------------------------------
+for lap in laps:
 
-lap_types = []
+    idx = lap["wkt_step_index"]
 
-for step in workout_steps:
+    lap["type"] = workout_steps[idx].get("intensity")
 
-    intensity = step.get("intensity")
-    repeat_steps = step.get("repeat_steps")
+for i, lap in enumerate(laps):
+    print(i, lap["type"])    
 
-    if intensity == "warmup":
-        lap_types.append("Warmup")
-
-    elif intensity == "active":
-        active_step = "Active"
-
-    elif intensity == "recovery":
-        recovery_step = "Recovery"
-
-    elif repeat_steps is not None:
-
-        for _ in range(repeat_steps):
-            lap_types.append(active_step)
-            lap_types.append(recovery_step)
-
-# ------------------------------------------------------------------
-# Apply classifications
-# ------------------------------------------------------------------
-
-if len(lap_types) != len(laps):
-    print(
-        f"WARNING: Workout definition generated "
-        f"{len(lap_types)} lap types but file contains "
-        f"{len(laps)} laps"
-    )
-
-for lap, lap_type in zip(laps, lap_types):
-
-    lap["type"] = lap_type
 
 # ------------------------------------------------------------------
 # Assign interval numbers
@@ -169,14 +140,14 @@ interval_no = 0
 
 for lap in laps:
 
-    if lap["type"] == "Warmup":
+    if lap["type"] == "warmup":
         lap["interval"] = ""
 
-    elif lap["type"] == "Active":
+    elif lap["type"] == "active":
         interval_no += 1
         lap["interval"] = interval_no
 
-    elif lap["type"] == "Recovery":
+    elif lap["type"] == "recovery":
         lap["interval"] = interval_no
 
 # ------------------------------------------------------------------
