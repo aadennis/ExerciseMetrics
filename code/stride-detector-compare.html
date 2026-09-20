@@ -51,6 +51,8 @@
   .stat .v { font-size: 24px; font-weight: 650; margin-top: 4px; }
   .stat .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .stat.hl .v { color: var(--amber); }
+  .stat .s.cmp { color: var(--blue); margin-top: 4px; }
+  .stat .s.cmp b { font-weight: 650; }
 
   .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px 12px; }
@@ -142,13 +144,14 @@
           <span><i style="background:var(--amber-a);border:1px solid var(--amber)"></i>Stride</span>
           <span><i style="background:var(--blue-a);border:1px solid var(--blue)"></i>Pickup</span>
           <span><i style="background:var(--grey-a);border:1px solid var(--muted)"></i>Recovery window</span>
+          <span id="cmpLegend"></span>
         </div>
         <div class="chartbox"><canvas id="chartPaceHr"></canvas></div>
       </div>
 
       <div class="panel wide">
         <h2>Cadence: did you keep running?</h2>
-        <div class="note">Dashed red line is the walking threshold (140 spm). Recoveries should stay above it.</div>
+        <div class="note" id="cadNote">Dashed red line is the walking threshold (140 spm). Recoveries should stay above it.</div>
         <div class="chartbox"><canvas id="chartCadence"></canvas></div>
       </div>
 
@@ -620,23 +623,41 @@ function renderAll() {
   safe(renderCompare, "compare");
 }
 
-function renderHero() {
-  const m = state.result.meta, ev = state.result.events;
+function runLabels() {
+  let la = state.result.meta.label, lb = state.resultB ? state.resultB.meta.label : "";
+  if (state.resultB && la === lb) { la += " (main)"; lb += " (compare)"; }
+  return [la, lb];
+}
+
+function heroCells(res) {
+  const m = res.meta, ev = res.events;
   const strides = ev.filter(e => e.type === "stride"), picks = ev.filter(e => e.type === "pickup");
   let fastest = null;
   strides.forEach(e => { if (!fastest || e.peakPace < fastest.peakPace) fastest = e; });
-  const walkOk = m.walkSecs === 0;
-  const cells = [
+  return [
     { k: "Distance", v: (m.totalDist / 1000).toFixed(2) + " km", s: "moving record" },
     { k: "Time", v: fmtTime(m.totalTime), s: "avg " + fmtPace(paceMin(m.avgV)) + " /km" },
     { k: "Steady pace", v: fmtPace(paceMin(m.runBaseV)), s: "median, /km" },
     { k: "Strides", v: String(strides.length), s: "+ " + picks.length + " pickup" + (picks.length === 1 ? "" : "s"), hl: true },
     { k: "Fastest stride", v: fastest ? fmtPace(fastest.peakPace) : "--", s: fastest ? "peak, " + Math.round(fastest.peakCad) + " spm" : "none found", hl: true },
-    { k: "Lowest cadence", v: m.minCad !== null ? Math.round(m.minCad) + " spm" : "--", s: walkOk ? "no walking detected" : m.walkSecs + " s below " + WALK_CADENCE }
+    { k: "Lowest cadence", v: m.minCad !== null ? Math.round(m.minCad) + " spm" : "--", s: m.walkSecs === 0 ? "no walking detected" : m.walkSecs + " s below " + WALK_CADENCE }
   ];
-  document.getElementById("hero").innerHTML = cells.map(c =>
-    '<div class="stat' + (c.hl ? " hl" : "") + '"><div class="k">' + c.k + '</div><div class="v">' + c.v + '</div><div class="s">' + c.s + '</div></div>'
-  ).join("");
+}
+
+function renderHero() {
+  const A = heroCells(state.result);
+  const B = state.resultB ? heroCells(state.resultB) : null;
+  const labs = runLabels();
+  document.getElementById("hero").innerHTML = A.map((c, i) => {
+    let h = '<div class="stat' + (c.hl ? " hl" : "") + '"><div class="k">' + c.k + '</div>';
+    if (B) {
+      h += '<div class="v">' + c.v + '</div><div class="s">' + labs[0] + " &middot; " + c.s + "</div>" +
+           '<div class="s cmp"><b>' + labs[1] + ": " + B[i].v + "</b> &middot; " + B[i].s + "</div>";
+    } else {
+      h += '<div class="v">' + c.v + '</div><div class="s">' + c.s + "</div>";
+    }
+    return h + "</div>";
+  }).join("");
 }
 
 function renderChips() {
@@ -700,22 +721,48 @@ function renderCharts() {
   destroyCharts();
   Chart.defaults.color = "#8b93a1";
   Chart.defaults.font.family = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  const R = state.result, S = R.series, total = R.meta.totalTime;
+  const R = state.result, S = R.series;
+  const RB = state.resultB, SB = RB ? RB.series : null;      // optional compare run (overlay only, no shading)
+  const total = RB ? Math.max(R.meta.totalTime, RB.meta.totalTime) : R.meta.totalTime;
+  const [la, lb] = runLabels();
   const evAll = filterEvents(R.events, state.mode);
   const bands = bandsFor(evAll);
   const step = Math.max(1, Math.round(S.t.length / 1200));   // thin very long runs
 
-  const pts = (arr, fn) => { const o = []; for (let i = 0; i < S.t.length; i += step) { const y = fn ? fn(arr[i]) : arr[i]; o.push({ x: S.t[i], y: y }); } return o; };
+  // points for any run's series, x = elapsed seconds so the two runs line up from the start
+  const ptsOf = (ser, arr, fn) => {
+    const st = Math.max(1, Math.round(ser.t.length / 1200)), o = [];
+    for (let i = 0; i < ser.t.length; i += st) {
+      let y = arr[i];
+      if (fn && y !== null && y !== undefined) y = fn(y);
+      o.push({ x: ser.t[i], y: y === undefined ? null : y });
+    }
+    return o;
+  };
+  const pts = (arr, fn) => ptsOf(S, arr, fn);
+  const paceFn = v => { const p = paceMin(v); return p && p < 12 ? p : null; };
+  const sfx = RB ? " (" + la + ")" : "";
+  const sfxB = RB ? " (" + lb + ")" : "";
+
+  const legendExtra = document.getElementById("cmpLegend");
+  if (legendExtra) legendExtra.innerHTML = RB ? '<span><i style="background:none;border-top:2px dashed var(--muted);height:0;width:16px"></i>Dashed line = ' + lb + ' (compare, aligned by elapsed time)</span>' : "";
+  const cadNote = document.getElementById("cadNote");
+  if (cadNote) cadNote.textContent = "Dashed red line is the walking threshold (140 spm). Recoveries should stay above it." + (RB ? " The fainter dashed line is " + lb + "." : "");
 
   safe(() => {
     charts.pace = new Chart(document.getElementById("chartPaceHr"), {
       type: "line",
       data: { datasets: [
-        { type: "line", label: "Pace (/km)", data: pts(S.v5, v => { const p = paceMin(v); return p && p < 12 ? p : null; }),
+        { type: "line", label: "Pace" + sfx, data: pts(S.v5, paceFn),
           borderColor: "#f0a868", borderWidth: 1.6, pointRadius: 0, tension: 0.15, yAxisID: "y", spanGaps: true },
-        { type: "line", label: "Heart rate", data: pts(S.hr),
+        { type: "line", label: "Heart rate" + sfx, data: pts(S.hr),
           borderColor: "#6aa7e0", borderWidth: 1.2, pointRadius: 0, tension: 0.2, yAxisID: "y1", spanGaps: true }
-      ] },
+      ].concat(RB ? [
+        { type: "line", label: "Pace" + sfxB, data: ptsOf(SB, SB.v5, paceFn),
+          borderColor: "rgba(240,168,104,0.6)", borderDash: [6, 3], borderWidth: 1.2, pointRadius: 0, tension: 0.15, yAxisID: "y", spanGaps: true },
+        { type: "line", label: "Heart rate" + sfxB, data: ptsOf(SB, SB.hr),
+          borderColor: "rgba(106,167,224,0.55)", borderDash: [6, 3], borderWidth: 1, pointRadius: 0, tension: 0.2, yAxisID: "y1", spanGaps: true }
+      ] : []) },
       plugins: [shadePlugin],
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
@@ -727,10 +774,10 @@ function renderCharts() {
           y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#6aa7e0" } }
         },
         plugins: {
-          legend: { display: false }, shade: { bands: bands },
+          legend: { display: !!RB, labels: { boxWidth: 12 } }, shade: { bands: bands },
           tooltip: { callbacks: {
             title: items => fmtTime(items[0].parsed.x),
-            label: c => c.dataset.yAxisID === "y" ? "Pace " + fmtPace(c.parsed.y) + " /km" : "HR " + Math.round(c.parsed.y) + " bpm"
+            label: c => c.dataset.label + ": " + (c.dataset.yAxisID === "y" ? fmtPace(c.parsed.y) + " /km" : Math.round(c.parsed.y) + " bpm")
           } }
         }
       }
@@ -741,10 +788,12 @@ function renderCharts() {
     charts.cad = new Chart(document.getElementById("chartCadence"), {
       type: "line",
       data: { datasets: [
-        { type: "line", label: "Cadence", data: pts(S.c5), borderColor: "#e2665f", borderWidth: 1.5, pointRadius: 0, tension: 0.15, spanGaps: true },
-        { type: "line", label: "Local baseline", data: pts(S.cbase), borderColor: "#8b93a1", borderDash: [4, 4], borderWidth: 1, pointRadius: 0, spanGaps: true },
+        { type: "line", label: "Cadence" + sfx, data: pts(S.c5), borderColor: "#e2665f", borderWidth: 1.5, pointRadius: 0, tension: 0.15, spanGaps: true },
+        { type: "line", label: "Local baseline" + sfx, data: pts(S.cbase), borderColor: "#8b93a1", borderDash: [4, 4], borderWidth: 1, pointRadius: 0, spanGaps: true },
         { type: "line", label: "Walk threshold", data: [{ x: 0, y: WALK_CADENCE }, { x: total, y: WALK_CADENCE }], borderColor: "#e2665f", borderDash: [2, 5], borderWidth: 1, pointRadius: 0 }
-      ] },
+      ].concat(RB ? [
+        { type: "line", label: "Cadence" + sfxB, data: ptsOf(SB, SB.c5), borderColor: "rgba(226,102,95,0.5)", borderDash: [6, 3], borderWidth: 1.2, pointRadius: 0, tension: 0.15, spanGaps: true }
+      ] : []) },
       plugins: [shadePlugin],
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
