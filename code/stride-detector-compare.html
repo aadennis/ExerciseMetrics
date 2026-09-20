@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stride Detector</title>
+<style>
+  :root {
+    --bg: #12151b;
+    --panel: #1a1f27;
+    --border: #2a313c;
+    --text: #eae7df;
+    --muted: #8b93a1;
+    --amber: #f0a868;
+    --coral: #e2665f;
+    --blue: #6aa7e0;
+    --amber-a: rgba(240,168,104,0.22);
+    --blue-a: rgba(106,167,224,0.16);
+    --grey-a: rgba(139,147,161,0.10);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 28px 60px;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 24px; color: var(--amber); font-weight: 650; letter-spacing: .2px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 22px; }
+
+  #dropzone {
+    border: 1.5px dashed var(--border); border-radius: 12px; background: var(--panel);
+    padding: 26px; text-align: center; color: var(--muted); cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.over { border-color: var(--amber); background: #1f252e; }
+  #dropzone strong { color: var(--text); }
+  #fileinfo { margin-top: 6px; font-size: 13px; color: var(--amber); }
+  #err { color: var(--coral); margin-top: 10px; font-size: 14px; display: none; }
+
+  .controls { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+  .controls input[type=number] {
+    width: 70px; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 4px 6px; font-size: 13px;
+  }
+
+  #app { display: none; margin-top: 22px; }
+  .hero { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .stat .v { font-size: 24px; font-weight: 650; margin-top: 4px; }
+  .stat .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat.hl .v { color: var(--amber); }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px 12px; }
+  .panel.wide { grid-column: 1 / -1; }
+  .panel h2 { margin: 0 0 2px; font-size: 14px; color: var(--text); font-weight: 600; }
+  .panel .note { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .chartbox { position: relative; height: 260px; }
+  .panel.wide .chartbox { height: 300px; }
+
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin: 2px 0 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  .chips { display: flex; gap: 8px; margin-bottom: 10px; }
+  .chip {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 999px; padding: 5px 14px; font-size: 12.5px; cursor: pointer;
+  }
+  .chip.on { border-color: var(--amber); color: var(--amber); background: rgba(240,168,104,0.08); }
+
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+  th { text-align: left; font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+       padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid #222832; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .badge.stride { background: rgba(240,168,104,0.16); color: var(--amber); }
+  .badge.pickup { background: rgba(106,167,224,0.16); color: var(--blue); }
+  .warn { color: var(--coral); font-weight: 600; }
+  .dim { color: var(--muted); }
+  .foot { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
+  .dz2 {
+    margin-top: 10px; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--panel);
+    padding: 12px 16px; color: var(--muted); font-size: 13px; cursor: pointer;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; transition: border-color .15s, background .15s;
+  }
+  .dz2.over { border-color: var(--blue); background: #1f252e; }
+  .dz2 strong { color: var(--text); }
+  .dz2 .nm { color: var(--blue); }
+  .dz2 .chip { padding: 3px 11px; font-size: 12px; }
+  td.a { color: var(--amber); font-weight: 600; }
+  td.b { color: var(--blue); font-weight: 600; }
+  th.a { color: var(--amber); } th.b { color: var(--blue); }
+  #compare { margin-top: 14px; }
+  .decomp { margin-top: 10px; font-size: 13.5px; line-height: 1.55; color: var(--text); }
+  .decomp b { color: var(--amber); }
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: repeat(2, 1fr); }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stride Detector</h1>
+  <div class="sub">Finds un-lapped strides in a per-second Garmin record CSV, and checks how you recovered from each one.</div>
+
+  <div id="dropzone">
+    <div><strong>Drop a per-second .csv here</strong> or click to choose one</div>
+    <div style="font-size:12px;margin-top:4px">Needs columns: timestamp, distance, cadence, heart_rate (speed optional)</div>
+    <div id="fileinfo"></div>
+    <input type="file" id="filepicker" accept=".csv" style="display:none">
+  </div>
+  <div id="dz2" class="dz2">
+    <span><strong>Compare with another run</strong> (optional): drop a second per-second .csv here or click</span>
+    <span id="fileinfo2" class="nm"></span>
+    <button class="chip" id="swap" style="display:none">Swap runs</button>
+    <button class="chip" id="clear2" style="display:none">Remove</button>
+    <input type="file" id="filepicker2" accept=".csv" style="display:none">
+  </div>
+  <div id="err"></div>
+  <div class="controls">
+    <label>Sensitivity: pace jump above local pace
+      <input type="number" id="thr" value="0.30" step="0.05" min="0.1" max="1.5"> m/s
+    </label>
+    <label>Min length
+      <input type="number" id="minlen" value="8" step="1" min="4" max="30"> s
+    </label>
+  </div>
+
+  <div id="app">
+    <div class="hero" id="hero"></div>
+
+    <div class="grid">
+      <div class="panel wide">
+        <h2>Pace and heart rate, strides highlighted</h2>
+        <div class="legend">
+          <span><i style="background:var(--amber-a);border:1px solid var(--amber)"></i>Stride</span>
+          <span><i style="background:var(--blue-a);border:1px solid var(--blue)"></i>Pickup</span>
+          <span><i style="background:var(--grey-a);border:1px solid var(--muted)"></i>Recovery window</span>
+        </div>
+        <div class="chartbox"><canvas id="chartPaceHr"></canvas></div>
+      </div>
+
+      <div class="panel wide">
+        <h2>Cadence: did you keep running?</h2>
+        <div class="note">Dashed red line is the walking threshold (140 spm). Recoveries should stay above it.</div>
+        <div class="chartbox"><canvas id="chartCadence"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>How much faster than your steady pace</h2>
+        <div class="note">Seconds per km faster than the run's median pace.</div>
+        <div class="chartbox"><canvas id="chartFaster"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>Recovery after each one</h2>
+        <div class="note">Bars: lowest cadence in recovery. Line: seconds to get back to steady pace.</div>
+        <div class="chartbox"><canvas id="chartRecovery"></canvas></div>
+      </div>
+
+      <div class="panel wide">
+        <h2>Stride log</h2>
+        <div class="chips" id="chips"></div>
+        <div class="tablewrap"><table id="tbl"></table></div>
+        <div class="foot" id="foot"></div>
+      </div>
+    </div>
+
+    <div id="compare" style="display:none">
+      <div class="grid">
+        <div class="panel wide">
+          <h2 id="cmpTitle">Run comparison</h2>
+          <div class="note" id="cmpNote"></div>
+          <div class="tablewrap"><table id="cmpSummary"></table></div>
+          <div class="decomp" id="cmpDecomp"></div>
+        </div>
+        <div class="panel wide">
+          <h2>Per-km splits</h2>
+          <div class="tablewrap"><table id="cmpSplits"></table></div>
+        </div>
+        <div class="panel wide">
+          <h2>Pace by distance</h2>
+          <div class="note">Smoothed over about 15 s. Strides show as dips towards the top of the chart.</div>
+          <div class="chartbox"><canvas id="cmpPace"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Heart rate by distance</h2>
+          <div class="chartbox"><canvas id="cmpHr"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Cadence by distance</h2>
+          <div class="chartbox"><canvas id="cmpCad"></canvas></div>
+        </div>
+        <div class="panel wide">
+          <h2>Step length by distance</h2>
+          <div class="note">Pace is cadence times step length, so this is where a pace gap usually shows up.</div>
+          <div class="chartbox"><canvas id="cmpStep"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+<!-- ============================ ANALYSIS (pure logic) ============================ -->
+<script id="logic">
+const WALK_CADENCE = 140;   // spm below which we call it walking
+const RECOVERY_MAX = 90;    // seconds of recovery window examined after each stride
+
+function parseCSV(text) {
+  // Quote-aware: handles commas inside quoted fields, "" escapes, CRLF or LF.
+  const rows = [];
+  let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQ = false; }
+      } else { field += ch; }
+    } else if (ch === '"') { inQ = true; }
+    else if (ch === ',') { row.push(field); field = ""; }
+    else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (ch === '\r') { /* skip */ }
+    else { field += ch; }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  const clean = rows.filter(r => r.some(c => c.trim().length));
+  if (!clean.length) return [];
+  const header = clean[0].map(h => h.trim());
+  return clean.slice(1).map(r => {
+    const o = {};
+    header.forEach((h, i) => { o[h] = r[i] === undefined ? "" : r[i].trim(); });
+    return o;
+  });
+}
+
+function num(v) {
+  if (v === undefined || v === null || v === "" || v === "--") return null;
+  const n = parseFloat(v);
+  return isFinite(n) ? n : null;
+}
+
+function smooth(arr, half) {           // centred mean, truncated window at the edges
+  const out = new Array(arr.length);
+  for (let i = 0; i < arr.length; i++) {
+    let s = 0, c = 0;
+    for (let j = Math.max(0, i - half); j <= Math.min(arr.length - 1, i + half); j++) {
+      if (arr[j] !== null && isFinite(arr[j])) { s += arr[j]; c++; }
+    }
+    out[i] = c ? s / c : null;
+  }
+  return out;
+}
+
+function median(vals) {
+  const a = vals.filter(v => v !== null && isFinite(v)).sort((x, y) => x - y);
+  if (!a.length) return null;
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function rollMedian(arr, half) {
+  const out = new Array(arr.length);
+  for (let i = 0; i < arr.length; i++) {
+    out[i] = median(arr.slice(Math.max(0, i - half), Math.min(arr.length, i + half + 1)));
+  }
+  return out;
+}
+
+function paceMin(v) { return v && v > 0 ? 1000 / v / 60 : null; }   // m/s -> min/km (decimal)
+
+function analyse(rawRows, opts) {
+  opts = opts || {};
+  const thr = opts.thr !== undefined ? opts.thr : 0.30;
+  const minLen = opts.minLen !== undefined ? opts.minLen : 8;
+
+  const rows = rawRows.filter(r => num(r.distance) !== null);
+  if (rows.length < 120) throw new Error("Not enough data rows (need at least 2 minutes of per-second records).");
+
+  const t0 = Date.parse((rows[0].timestamp || "").replace(" ", "T"));
+  const t = rows.map((r, i) => {
+    const ms = Date.parse((r.timestamp || "").replace(" ", "T"));
+    return isFinite(ms) && isFinite(t0) ? (ms - t0) / 1000 : i;
+  });
+  const dist = rows.map(r => num(r.distance));
+  const cad = rows.map(r => num(r.cadence));
+  const hr = rows.map(r => num(r.heart_rate));
+  const spd = rows.map(r => num(r.speed));
+  const stp = rows.map(r => num(r.step_length));
+  const gct = rows.map(r => num(r.contact_time));
+  const vo = rows.map(r => num(r.vertical_oscillation));
+  const vr = rows.map(r => num(r.vertical_ratio));
+  const alt = rows.map(r => num(r.altitude));
+
+  // Speed from distance deltas: the logged `speed` column lags by ~4-5 s, distance does not.
+  const dv = dist.map((d, i) => {
+    if (i === 0) return spd[0] !== null ? spd[0] : d;
+    const dt = Math.max(1, t[i] - t[i - 1]);
+    return Math.max(0, (d - dist[i - 1]) / dt);
+  });
+  const v5 = smooth(dv, 2);
+  const c5 = smooth(cad, 2);
+  const base = rollMedian(v5, 90);
+  const cbase = rollMedian(c5, 90);
+
+  const n = rows.length;
+  const runBase = median(v5.slice(30));           // steady pace for the whole run
+
+  // Flag seconds well above local pace (skip the first 30 s: warm-up acceleration)
+  const flag = v5.map((v, i) => i >= 30 && v !== null && base[i] !== null && (v - base[i]) > thr);
+  let segs = [], st = null;
+  for (let i = 0; i < n; i++) {
+    if (flag[i] && st === null) st = i;
+    if (!flag[i] && st !== null) { segs.push([st, i - 1]); st = null; }
+  }
+  if (st !== null) segs.push([st, n - 1]);
+  const merged = [];
+  segs.forEach(s => {
+    if (merged.length && s[0] - merged[merged.length - 1][1] <= 4) merged[merged.length - 1][1] = s[1];
+    else merged.push([s[0], s[1]]);
+  });
+  const kept = merged.filter(s => s[1] - s[0] + 1 >= minLen);
+
+  const target = runBase - 0.15;                  // "back to steady pace" line
+
+  const events = kept.map((s, k) => {
+    const a = s[0], b = s[1];
+    const len = b - a + 1;
+    const distM = dist[b] - dist[a - 1];
+    let vPeak = -Infinity, cPeak = -Infinity, hrPeak = -Infinity;
+    for (let i = a; i <= b; i++) {
+      if (v5[i] > vPeak) vPeak = v5[i];
+      if (c5[i] !== null && c5[i] > cPeak) cPeak = c5[i];
+    }
+    for (let i = a; i <= Math.min(n - 1, b + 5); i++) if (hr[i] !== null && hr[i] > hrPeak) hrPeak = hr[i];
+    const cadBase = cbase[a];
+    const paceBase = base[a];
+    const ev = {
+      idx: k + 1,
+      a: a, b: b,
+      startT: t[a], endT: t[b], len: len,
+      startDist: dist[a], distM: distM,
+      avgPace: paceMin(distM / len),
+      peakPace: paceMin(vPeak),
+      peakCad: cPeak,
+      cadBase: cadBase,
+      cadGain: cPeak - cadBase,
+      vGain: vPeak - paceBase,
+      hrStart: hr[a], hrPeak: hrPeak === -Infinity ? null : hrPeak,
+      fasterAvg: paceMin(runBase) * 60 - paceMin(distM / len) * 60,
+      fasterPeak: paceMin(runBase) * 60 - paceMin(vPeak) * 60
+    };
+    ev.vGainRun = vPeak - runBase;      // peak speed vs the whole run's steady pace
+    ev.type = (ev.vGainRun >= 0.8 && ev.cadGain >= 12) ? "stride" : "pickup";
+    return ev;
+  });
+
+  // Recovery: from the end of each event to the next event (max 90 s)
+  events.forEach((ev, k) => {
+    const from = ev.b + 1;
+    const nextStart = k + 1 < events.length ? events[k + 1].a - 1 : n - 1;
+    const to = Math.min(ev.b + RECOVERY_MAX, nextStart, n - 1);
+    ev.recFrom = from; ev.recTo = to;
+    if (to < from) { ev.minCad = null; ev.slowPace = null; ev.recSec = null; ev.recState = "none"; return; }
+    let minC = Infinity, minV = Infinity;
+    for (let i = from; i <= to; i++) {
+      if (c5[i] !== null && c5[i] < minC) minC = c5[i];
+      if (v5[i] !== null && v5[i] < minV) minV = v5[i];
+    }
+    ev.minCad = minC === Infinity ? null : minC;
+    ev.slowPace = minV === Infinity ? null : paceMin(minV);
+    ev.walked = ev.minCad !== null && ev.minCad < WALK_CADENCE;
+    // first dip below target, then first 3 consecutive seconds back at/above target
+    let dip = -1;
+    for (let i = from; i <= to; i++) if (v5[i] < target) { dip = i; break; }
+    if (dip === -1) { ev.recSec = 0; ev.recState = "nodip"; return; }
+    let back = -1;
+    for (let i = dip; i <= to - 2; i++) {
+      if (v5[i] >= target && v5[i + 1] >= target && v5[i + 2] >= target) { back = i; break; }
+    }
+    if (back === -1) {
+      ev.recSec = to - from + 1;
+      ev.recState = (k + 1 < events.length && to === nextStart) ? "cut" : (to >= n - 1 ? "ended" : "open");
+      if (ev.recState === "cut") ev.recNext = events[k + 1].idx;
+    }
+    else { ev.recSec = back - ev.b; ev.recState = "ok"; }
+  });
+
+  // Whole-run "never walk" check (ignore first minute)
+  let minCad = Infinity, walkSecs = 0;
+  for (let i = 60; i < n; i++) {
+    if (c5[i] === null) continue;
+    if (c5[i] < minCad) minCad = c5[i];
+    if (c5[i] < WALK_CADENCE) walkSecs++;
+  }
+
+  return {
+    events: events,
+    meta: {
+      n: n,
+      totalDist: dist[n - 1],
+      totalTime: t[n - 1],
+      avgV: dist[n - 1] / Math.max(1, t[n - 1]),
+      runBaseV: runBase,
+      minCad: minCad === Infinity ? null : minCad,
+      walkSecs: walkSecs,
+      thr: thr,
+      label: runLabel(rows)
+    },
+    series: { t: t, v5: v5, c5: c5, hr: hr, cbase: cbase, dist: dist, cadence: cad, step: stp, gct: gct, vo: vo, vr: vr, alt: alt }
+  };
+}
+
+// ---------- two-run comparison ----------
+function runLabel(rows) {
+  const ms = Date.parse(((rows[0] && rows[0].timestamp) || "").replace(" ", "T"));
+  if (!isFinite(ms)) return "Run";
+  return new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function meanOf(arr, a, b) {
+  let s = 0, c = 0;
+  for (let i = a; i <= b; i++) { const v = arr[i]; if (v !== null && v !== undefined && isFinite(v)) { s += v; c++; } }
+  return c ? s / c : null;
+}
+function maxOf(arr, a, b) {
+  let m = null;
+  for (let i = a; i <= b; i++) { const v = arr[i]; if (v !== null && v !== undefined && isFinite(v) && (m === null || v > m)) m = v; }
+  return m;
+}
+function indexAtDist(dist, m) {
+  for (let i = 0; i < dist.length; i++) if (dist[i] >= m) return i;
+  return -1;
+}
+function gainOf(alt, a, b) {
+  let g = 0;
+  for (let i = a + 1; i <= b; i++) if (alt[i] !== null && alt[i - 1] !== null && alt[i] > alt[i - 1]) g += alt[i] - alt[i - 1];
+  return g;
+}
+
+function metricsOver(S, a, b) {
+  return {
+    hr: meanOf(S.hr, a, b), hrMax: maxOf(S.hr, a, b),
+    cad: meanOf(S.cadence, a, b), step: meanOf(S.step, a, b),
+    gct: meanOf(S.gct, a, b), vo: meanOf(S.vo, a, b), vr: meanOf(S.vr, a, b)
+  };
+}
+
+function windowStats(res, km) {
+  const S = res.series;
+  const j = indexAtDist(S.dist, km * 1000);
+  if (j < 0) return null;
+  const w = metricsOver(S, 0, j);
+  w.time = S.t[j] - S.t[0];
+  w.pace = w.time / km / 60;                       // min/km, decimal
+  w.speed = km * 1000 / w.time;                    // m/s
+  w.gain = gainOf(S.alt, 0, j);
+  w.strides = res.events.filter(e => e.type === "stride").length;
+  return w;
+}
+
+function splitsPerKm(res, km) {
+  const S = res.series, out = [];
+  let prev = 0;
+  for (let k = 1; k <= km; k++) {
+    const j = indexAtDist(S.dist, k * 1000);
+    if (j < 0) break;
+    const m = metricsOver(S, prev, j);
+    m.km = k; m.time = S.t[j] - S.t[prev];
+    out.push(m);
+    prev = j;
+  }
+  return out;
+}
+
+function compareRuns(A, B) {
+  const km = Math.floor(Math.min(A.meta.totalDist, B.meta.totalDist) / 1000);
+  if (km < 1) return null;
+  const wa = windowStats(A, km), wb = windowStats(B, km);
+  if (!wa || !wb) return null;
+  const pct = (x, y) => (x !== null && y !== null && y !== 0) ? (x / y - 1) * 100 : null;
+  return {
+    km: km, wa: wa, wb: wb,
+    sa: splitsPerKm(A, km), sb: splitsPerKm(B, km),
+    dec: { speed: pct(wa.speed, wb.speed), cad: pct(wa.cad, wb.cad), step: pct(wa.step, wb.step) }
+  };
+}
+
+function filterEvents(events, mode) {
+  if (mode === "stride") return events.filter(e => e.type === "stride");
+  if (mode === "pickup") return events.filter(e => e.type === "pickup");
+  return events.slice();
+}
+
+function fmtPace(p) {
+  if (p === null || p === undefined || !isFinite(p)) return "--";
+  let m = Math.floor(p), s = Math.round((p - m) * 60);
+  if (s === 60) { m += 1; s = 0; }
+  return m + ":" + String(s).padStart(2, "0");
+}
+function fmtTime(sec) {
+  sec = Math.round(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h ? h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0")
+           : m + ":" + String(s).padStart(2, "0");
+}
+</script>
+
+<!-- ============================ UI ============================ -->
+<script id="ui">
+let charts = {};
+let state = { result: null, mode: "all", rows: null, name: "", resultB: null, rowsB: null, nameB: "" };
+let cmpCharts = {};
+
+const dropzone = document.getElementById("dropzone");
+const picker = document.getElementById("filepicker");
+
+dropzone.addEventListener("click", () => picker.click());
+dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("over"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("over"));
+dropzone.addEventListener("drop", e => {
+  e.preventDefault(); dropzone.classList.remove("over");
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0], "A");
+});
+picker.addEventListener("change", e => { if (e.target.files[0]) loadFile(e.target.files[0], "A"); });
+
+const dz2 = document.getElementById("dz2"), picker2 = document.getElementById("filepicker2");
+dz2.addEventListener("click", e => { if (e.target.tagName !== "BUTTON") picker2.click(); });
+dz2.addEventListener("dragover", e => { e.preventDefault(); dz2.classList.add("over"); });
+dz2.addEventListener("dragleave", () => dz2.classList.remove("over"));
+dz2.addEventListener("drop", e => {
+  e.preventDefault(); dz2.classList.remove("over");
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0], "B");
+});
+picker2.addEventListener("change", e => { if (e.target.files[0]) loadFile(e.target.files[0], "B"); });
+document.getElementById("clear2").addEventListener("click", e => {
+  e.stopPropagation();
+  state.rowsB = null; state.nameB = ""; state.resultB = null;
+  updateSlotInfo(); rerun();
+});
+document.getElementById("swap").addEventListener("click", e => {
+  e.stopPropagation();
+  if (!state.rows || !state.rowsB) return;
+  const r = state.rows, n = state.name;
+  state.rows = state.rowsB; state.name = state.nameB;
+  state.rowsB = r; state.nameB = n;
+  updateSlotInfo(); rerun();
+});
+
+function updateSlotInfo() {
+  document.getElementById("fileinfo").textContent = state.rows ? state.name + "  ·  " + state.rows.length + " records" : "";
+  document.getElementById("fileinfo2").textContent = state.rowsB ? state.nameB + "  ·  " + state.rowsB.length + " records" : "";
+  document.getElementById("swap").style.display = state.rowsB ? "inline-block" : "none";
+  document.getElementById("clear2").style.display = state.rowsB ? "inline-block" : "none";
+}
+document.getElementById("thr").addEventListener("change", rerun);
+document.getElementById("minlen").addEventListener("change", rerun);
+
+function showError(msg) {
+  const el = document.getElementById("err");
+  el.textContent = msg; el.style.display = msg ? "block" : "none";
+}
+
+function loadFile(file, slot) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const rows = parseCSV(e.target.result);
+      const need = ["timestamp", "distance", "cadence", "heart_rate"];
+      const have = rows.length ? Object.keys(rows[0]) : [];
+      const missing = need.filter(c => have.indexOf(c) === -1);
+      if (missing.length) throw new Error("Missing column(s): " + missing.join(", ") + ". This tool needs the per-second record CSV, not a lap summary.");
+      if (slot === "B") { state.rowsB = rows; state.nameB = file.name; }
+      else { state.rows = rows; state.name = file.name; }
+      updateSlotInfo();
+      showError("");
+      rerun();
+      if (slot === "B" && state.resultB) {
+        const c = document.getElementById("compare");
+        if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function rerun() {
+  if (!state.rows) return;
+  try {
+    const thr = parseFloat(document.getElementById("thr").value) || 0.30;
+    const minLen = parseInt(document.getElementById("minlen").value, 10) || 8;
+    state.result = analyse(state.rows, { thr: thr, minLen: minLen });
+    state.resultB = state.rowsB ? analyse(state.rowsB, { thr: thr, minLen: minLen }) : null;
+    showError("");
+    document.getElementById("app").style.display = "block";
+    renderAll();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function safe(fn, name) {
+  try { fn(); } catch (e) { console.error("Failed: " + name, e); }
+}
+
+function renderAll() {
+  safe(renderHero, "hero");
+  safe(renderChips, "chips");
+  safe(renderCharts, "charts");
+  safe(renderTable, "table");
+  safe(renderCompare, "compare");
+}
+
+function renderHero() {
+  const m = state.result.meta, ev = state.result.events;
+  const strides = ev.filter(e => e.type === "stride"), picks = ev.filter(e => e.type === "pickup");
+  let fastest = null;
+  strides.forEach(e => { if (!fastest || e.peakPace < fastest.peakPace) fastest = e; });
+  const walkOk = m.walkSecs === 0;
+  const cells = [
+    { k: "Distance", v: (m.totalDist / 1000).toFixed(2) + " km", s: "moving record" },
+    { k: "Time", v: fmtTime(m.totalTime), s: "avg " + fmtPace(paceMin(m.avgV)) + " /km" },
+    { k: "Steady pace", v: fmtPace(paceMin(m.runBaseV)), s: "median, /km" },
+    { k: "Strides", v: String(strides.length), s: "+ " + picks.length + " pickup" + (picks.length === 1 ? "" : "s"), hl: true },
+    { k: "Fastest stride", v: fastest ? fmtPace(fastest.peakPace) : "--", s: fastest ? "peak, " + Math.round(fastest.peakCad) + " spm" : "none found", hl: true },
+    { k: "Lowest cadence", v: m.minCad !== null ? Math.round(m.minCad) + " spm" : "--", s: walkOk ? "no walking detected" : m.walkSecs + " s below " + WALK_CADENCE }
+  ];
+  document.getElementById("hero").innerHTML = cells.map(c =>
+    '<div class="stat' + (c.hl ? " hl" : "") + '"><div class="k">' + c.k + '</div><div class="v">' + c.v + '</div><div class="s">' + c.s + '</div></div>'
+  ).join("");
+}
+
+function renderChips() {
+  const ev = state.result.events;
+  const defs = [
+    { id: "all", label: "All (" + ev.length + ")" },
+    { id: "stride", label: "Strides (" + filterEvents(ev, "stride").length + ")" },
+    { id: "pickup", label: "Pickups (" + filterEvents(ev, "pickup").length + ")" }
+  ];
+  const el = document.getElementById("chips");
+  el.innerHTML = defs.map(d => '<button class="chip' + (state.mode === d.id ? " on" : "") + '" data-m="' + d.id + '">' + d.label + '</button>').join("");
+  el.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+    state.mode = b.getAttribute("data-m");
+    renderChips(); safe(renderCharts, "charts"); safe(renderTable, "table");
+  }));
+}
+
+const shadePlugin = {
+  id: "shade",
+  beforeDatasetsDraw(chart, args, opts) {
+    const bands = (opts && opts.bands) || [];
+    const x = chart.scales.x, area = chart.chartArea, ctx = chart.ctx;
+    ctx.save();
+    bands.forEach(b => {
+      const x0 = Math.max(area.left, x.getPixelForValue(b.x0));
+      const x1 = Math.min(area.right, x.getPixelForValue(b.x1));
+      if (x1 <= x0) return;
+      ctx.fillStyle = b.fill;
+      ctx.fillRect(x0, area.top, x1 - x0, area.bottom - area.top);
+    });
+    ctx.restore();
+  }
+};
+
+function bandsFor(events) {
+  const bands = [];
+  events.forEach(e => {
+    if (e.recTo >= e.recFrom) bands.push({ x0: state.result.series.t[e.recFrom], x1: state.result.series.t[e.recTo], fill: "rgba(139,147,161,0.10)" });
+  });
+  events.forEach(e => {
+    bands.push({ x0: e.startT - 0.5, x1: e.endT + 0.5, fill: e.type === "stride" ? "rgba(240,168,104,0.28)" : "rgba(106,167,224,0.22)" });
+  });
+  return bands;
+}
+
+function destroyCharts() {
+  Object.keys(charts).forEach(k => { try { charts[k].destroy(); } catch (e) {} });
+  charts = {};
+}
+
+function timeAxis(total) {
+  const step = 60 * Math.max(1, Math.round(total / 60 / 8));
+  return {
+    type: "linear", min: 0, max: total,
+    ticks: { stepSize: step, color: "#8b93a1", callback: v => fmtTime(v) },
+    grid: { color: "rgba(42,49,60,0.6)" }
+  };
+}
+
+function renderCharts() {
+  destroyCharts();
+  Chart.defaults.color = "#8b93a1";
+  Chart.defaults.font.family = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  const R = state.result, S = R.series, total = R.meta.totalTime;
+  const evAll = filterEvents(R.events, state.mode);
+  const bands = bandsFor(evAll);
+  const step = Math.max(1, Math.round(S.t.length / 1200));   // thin very long runs
+
+  const pts = (arr, fn) => { const o = []; for (let i = 0; i < S.t.length; i += step) { const y = fn ? fn(arr[i]) : arr[i]; o.push({ x: S.t[i], y: y }); } return o; };
+
+  safe(() => {
+    charts.pace = new Chart(document.getElementById("chartPaceHr"), {
+      type: "line",
+      data: { datasets: [
+        { type: "line", label: "Pace (/km)", data: pts(S.v5, v => { const p = paceMin(v); return p && p < 12 ? p : null; }),
+          borderColor: "#f0a868", borderWidth: 1.6, pointRadius: 0, tension: 0.15, yAxisID: "y", spanGaps: true },
+        { type: "line", label: "Heart rate", data: pts(S.hr),
+          borderColor: "#6aa7e0", borderWidth: 1.2, pointRadius: 0, tension: 0.2, yAxisID: "y1", spanGaps: true }
+      ] },
+      plugins: [shadePlugin],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "nearest", axis: "x", intersect: false },
+        scales: {
+          x: timeAxis(total),
+          y: { reverse: true, min: 4, max: 10, position: "left", grid: { color: "rgba(42,49,60,0.6)" },
+               ticks: { callback: v => fmtPace(v), color: "#f0a868" } },
+          y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#6aa7e0" } }
+        },
+        plugins: {
+          legend: { display: false }, shade: { bands: bands },
+          tooltip: { callbacks: {
+            title: items => fmtTime(items[0].parsed.x),
+            label: c => c.dataset.yAxisID === "y" ? "Pace " + fmtPace(c.parsed.y) + " /km" : "HR " + Math.round(c.parsed.y) + " bpm"
+          } }
+        }
+      }
+    });
+  }, "chartPaceHr");
+
+  safe(() => {
+    charts.cad = new Chart(document.getElementById("chartCadence"), {
+      type: "line",
+      data: { datasets: [
+        { type: "line", label: "Cadence", data: pts(S.c5), borderColor: "#e2665f", borderWidth: 1.5, pointRadius: 0, tension: 0.15, spanGaps: true },
+        { type: "line", label: "Local baseline", data: pts(S.cbase), borderColor: "#8b93a1", borderDash: [4, 4], borderWidth: 1, pointRadius: 0, spanGaps: true },
+        { type: "line", label: "Walk threshold", data: [{ x: 0, y: WALK_CADENCE }, { x: total, y: WALK_CADENCE }], borderColor: "#e2665f", borderDash: [2, 5], borderWidth: 1, pointRadius: 0 }
+      ] },
+      plugins: [shadePlugin],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "nearest", axis: "x", intersect: false },
+        scales: {
+          x: timeAxis(total),
+          y: { min: 130, max: 200, grid: { color: "rgba(42,49,60,0.6)" }, title: { display: true, text: "spm" } }
+        },
+        plugins: {
+          legend: { labels: { boxWidth: 12 } }, shade: { bands: bands },
+          tooltip: { callbacks: { title: items => fmtTime(items[0].parsed.x) } }
+        }
+      }
+    });
+  }, "chartCadence");
+
+  const labels = evAll.map(e => "#" + e.idx + " " + fmtTime(e.startT));
+
+  safe(() => {
+    charts.faster = new Chart(document.getElementById("chartFaster"), {
+      type: "bar",
+      data: { labels: labels, datasets: [
+        { type: "bar", label: "Average", data: evAll.map(e => Math.round(e.fasterAvg)), backgroundColor: "rgba(240,168,104,0.55)", borderRadius: 4 },
+        { type: "bar", label: "Peak", data: evAll.map(e => Math.round(e.fasterPeak)), backgroundColor: "#f0a868", borderRadius: 4 }
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(42,49,60,0.6)" }, title: { display: true, text: "s/km faster" } } },
+        plugins: { legend: { labels: { boxWidth: 12 } } }
+      }
+    });
+  }, "chartFaster");
+
+  safe(() => {
+    charts.rec = new Chart(document.getElementById("chartRecovery"), {
+      type: "bar",
+      data: { labels: labels, datasets: [
+        { type: "bar", label: "Lowest cadence (spm)", data: evAll.map(e => e.minCad === null ? null : Math.round(e.minCad)), backgroundColor: "rgba(226,102,95,0.6)", borderRadius: 4, yAxisID: "y" },
+        { type: "line", label: "Walk threshold", data: evAll.map(() => WALK_CADENCE), borderColor: "#e2665f", borderDash: [4, 4], borderWidth: 1, pointRadius: 0, yAxisID: "y" },
+        { type: "line", label: "Secs to steady pace", data: evAll.map(e => e.recState === "ok" || e.recState === "nodip" ? e.recSec : null), borderColor: "#6aa7e0", backgroundColor: "#6aa7e0", borderWidth: 1.6, pointRadius: 4, yAxisID: "y1" }
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        scales: {
+          x: { grid: { display: false } },
+          y: { min: 100, max: 200, grid: { color: "rgba(42,49,60,0.6)" }, title: { display: true, text: "spm" } },
+          y1: { position: "right", min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: "seconds" } }
+        },
+        plugins: { legend: { labels: { boxWidth: 12 } } }
+      }
+    });
+  }, "chartRecovery");
+}
+
+function recCell(e) {
+  if (e.recState === "none") return '<span class="dim">--</span>';
+  if (e.recState === "nodip") return '<span class="dim">no dip</span>';
+  if (e.recState === "open") return "&gt; " + e.recSec + " s";
+  if (e.recState === "cut") return "not before #" + e.recNext + '<span class="dim"> (' + e.recSec + " s)</span>";
+  if (e.recState === "ended") return '<span class="dim">run ended</span>';
+  return e.recSec + " s";
+}
+
+function renderTable() {
+  const evs = filterEvents(state.result.events, state.mode);
+  const head = ["#", "Type", "Start", "At km", "Length", "Dist", "Avg pace", "Peak pace", "Peak cadence", "HR", "Recovery low cadence", "Slowest pace", "Back to steady"];
+  let html = "<thead><tr>" + head.map(h => "<th>" + h + "</th>").join("") + "</tr></thead><tbody>";
+  if (!evs.length) html += '<tr><td colspan="' + head.length + '" class="dim">Nothing found at this sensitivity. Try lowering it.</td></tr>';
+  evs.forEach(e => {
+    const cadTxt = e.minCad === null ? '<span class="dim">--</span>' :
+      (e.walked ? '<span class="warn">' + Math.round(e.minCad) + " spm (walk?)</span>" : Math.round(e.minCad) + " spm");
+    html += "<tr>" +
+      "<td>" + e.idx + "</td>" +
+      '<td><span class="badge ' + e.type + '">' + (e.type === "stride" ? "Stride" : "Pickup") + "</span></td>" +
+      "<td>" + fmtTime(e.startT) + "</td>" +
+      "<td>" + (e.startDist / 1000).toFixed(2) + "</td>" +
+      "<td>" + e.len + " s</td>" +
+      "<td>" + Math.round(e.distM) + " m</td>" +
+      "<td>" + fmtPace(e.avgPace) + "</td>" +
+      "<td>" + fmtPace(e.peakPace) + "</td>" +
+      "<td>" + Math.round(e.peakCad) + " <span class='dim'>(+" + Math.round(e.cadGain) + ")</span></td>" +
+      "<td>" + (e.hrStart !== null ? e.hrStart : "--") + " &rarr; " + (e.hrPeak !== null ? e.hrPeak : "--") + "</td>" +
+      "<td>" + cadTxt + "</td>" +
+      "<td>" + (e.slowPace !== null ? fmtPace(e.slowPace) : "--") + "</td>" +
+      "<td>" + recCell(e) + "</td>" +
+      "</tr>";
+  });
+  html += "</tbody>";
+  document.getElementById("tbl").innerHTML = html;
+  document.getElementById("foot").innerHTML =
+    "An event is any pace jump of " + state.result.meta.thr.toFixed(2) + " m/s or more over your local pace. It is a <b>stride</b> if its peak is 0.8+ m/s above the run's median pace and cadence rises 12+ spm; otherwise a <b>pickup</b>. Speed comes from distance deltas, not the lagging speed column. " +
+    "Recovery runs until the next event or 90 s; &ldquo;back to steady&rdquo; means within 0.15 m/s of the run's median pace for 3 s.";
+}
+
+// ---------- comparison rendering ----------
+function sgn(x, dec, unit) {
+  if (x === null || x === undefined || !isFinite(x)) return "--";
+  const r = x.toFixed(dec);
+  return (x > 0 && Number(r) !== 0 ? "+" : "") + r + (unit || "");
+}
+function sgnTime(sec) {
+  if (sec === null || !isFinite(sec)) return "--";
+  const a = Math.abs(Math.round(sec));
+  return (sec > 0 && a !== 0 ? "+" : (sec < 0 && a !== 0 ? "-" : "")) + fmtTime(a);
+}
+function pctOf(a, b) { return (a === null || b === null || !b) ? null : (a / b - 1) * 100; }
+
+function destroyCmp() {
+  Object.keys(cmpCharts).forEach(k => { try { cmpCharts[k].destroy(); } catch (e) {} });
+  cmpCharts = {};
+}
+
+function renderCompare() {
+  const box = document.getElementById("compare");
+  destroyCmp();
+  if (!state.resultB) { box.style.display = "none"; return; }
+  const A = state.result, B = state.resultB;
+  const cmp = compareRuns(A, B);
+  if (!cmp) { box.style.display = "none"; showError("Both runs need at least 1 km of distance for a comparison."); return; }
+  box.style.display = "block";
+  let la = A.meta.label, lb = B.meta.label;
+  if (la === lb) { la += " (main)"; lb += " (compare)"; }
+  const wa = cmp.wa, wb = cmp.wb;
+
+  document.getElementById("cmpTitle").textContent = "Run comparison: " + la + " vs " + lb;
+  document.getElementById("cmpNote").textContent = "First " + cmp.km + " km of each run. Difference = " + la + " minus " + lb + ".";
+
+  const numRow = (label, a, b, dec, unit, showPct) => {
+    const d = (a === null || b === null) ? null : a - b;
+    const p = showPct ? pctOf(a, b) : null;
+    return [label, a === null ? "--" : a.toFixed(dec) + (unit || ""), b === null ? "--" : b.toFixed(dec) + (unit || ""), sgn(d, dec, unit), p === null ? "" : sgn(p, 1, "%")];
+  };
+  const kmRange = arr => { const t = arr.map(x => x.time); return Math.max.apply(null, t) - Math.min.apply(null, t); };
+  const rows = [
+    ["Time for " + cmp.km + " km", fmtTime(wa.time), fmtTime(wb.time), sgnTime(wa.time - wb.time), sgn(pctOf(wa.time, wb.time), 1, "%")],
+    ["Average pace (/km)", fmtPace(wa.pace), fmtPace(wb.pace), sgnTime((wa.pace - wb.pace) * 60), sgn(pctOf(wa.pace, wb.pace), 1, "%")],
+    numRow("Average HR (bpm)", wa.hr, wb.hr, 1, "", true),
+    numRow("Max HR (bpm)", wa.hrMax, wb.hrMax, 0, "", false),
+    numRow("Cadence (spm)", wa.cad, wb.cad, 1, "", true),
+    numRow("Step length (m)", wa.step, wb.step, 3, "", true),
+    numRow("Ground contact (ms)", wa.gct, wb.gct, 1, "", true),
+    numRow("Vertical oscillation (mm)", wa.vo, wb.vo, 1, "", true),
+    numRow("Vertical ratio", wa.vr, wb.vr, 2, "", true),
+    numRow("Elevation gain (m, raw)", wa.gain, wb.gain, 0, "", false),
+    ["Km split spread", kmRange(cmp.sa) + " s", kmRange(cmp.sb) + " s", sgn(kmRange(cmp.sa) - kmRange(cmp.sb), 0, " s"), ""],
+    ["Strides found (whole run)", String(wa.strides), String(wb.strides), "", ""]
+  ];
+  document.getElementById("cmpSummary").innerHTML =
+    "<thead><tr><th>Metric</th><th class='a'>" + la + "</th><th class='b'>" + lb + "</th><th>Difference</th><th>%</th></tr></thead><tbody>" +
+    rows.map(r => "<tr><td>" + r[0] + "</td><td class='a'>" + r[1] + "</td><td class='b'>" + r[2] + "</td><td>" + r[3] + "</td><td class='dim'>" + r[4] + "</td></tr>").join("") + "</tbody>";
+
+  // pace = cadence x step length
+  const d = cmp.dec;
+  const dir = (x, up, down) => x === null ? "n/a" : (Math.abs(x) < 0.05 ? "unchanged" : Math.abs(x).toFixed(1) + "% " + (x > 0 ? up : down));
+  let text = "";
+  if (d.speed !== null && d.cad !== null && d.step !== null) {
+    text = "Over " + cmp.km + " km, <b>" + la + "</b> is " + dir(d.speed, "faster", "slower") + " than <b>" + lb + "</b>. " +
+      "Cadence is " + dir(d.cad, "higher", "lower") + " and step length is " + dir(d.step, "longer", "shorter") + ". " +
+      "Because speed is cadence times step length, those two changes combine to about " + dir(((1 + d.cad / 100) * (1 + d.step / 100) - 1) * 100, "faster", "slower") +
+      " (built from window averages, so it can differ a little from the exact figure).";
+  } else {
+    text = "Step length or cadence is missing from one file, so the pace gap can't be split into its two parts.";
+  }
+  document.getElementById("cmpDecomp").innerHTML = text;
+
+  // per-km table
+  const cols = [["Split", x => fmtTime(x.time), 1], ["HR", x => x.hr === null ? "--" : Math.round(x.hr), 1], ["Cadence", x => x.cad === null ? "--" : x.cad.toFixed(1), 1],
+                ["Step (m)", x => x.step === null ? "--" : x.step.toFixed(3), 1], ["GCT (ms)", x => x.gct === null ? "--" : Math.round(x.gct), 1]];
+  let h = "<thead><tr><th>km</th>";
+  cols.forEach(c => { h += "<th class='a'>" + c[0] + " " + la + "</th><th class='b'>" + c[0] + " " + lb + "</th>"; });
+  h += "<th>Split diff</th></tr></thead><tbody>";
+  for (let i = 0; i < cmp.sa.length && i < cmp.sb.length; i++) {
+    h += "<tr><td>" + (i + 1) + "</td>";
+    cols.forEach(c => { h += "<td class='a'>" + c[1](cmp.sa[i]) + "</td><td class='b'>" + c[1](cmp.sb[i]) + "</td>"; });
+    h += "<td>" + sgn(cmp.sa[i].time - cmp.sb[i].time, 0, " s") + "</td></tr>";
+  }
+  h += "</tbody>";
+  document.getElementById("cmpSplits").innerHTML = h;
+
+  safe(() => renderCompareCharts(A, B, la, lb), "compare charts");
+}
+
+function distPts(res, arr, half, fn) {
+  const S = res.series;
+  const sm = half ? smooth(arr, half) : arr;
+  const step = Math.max(1, Math.round(S.t.length / 900));
+  const o = [];
+  for (let i = 0; i < S.t.length; i += step) {
+    let y = sm[i];
+    if (y !== null && y !== undefined && fn) y = fn(y);
+    o.push({ x: S.dist[i] / 1000, y: (y === undefined || !isFinite(y)) ? null : y });
+  }
+  return o;
+}
+
+function renderCompareCharts(A, B, la, lb) {
+  const maxKm = Math.max(A.meta.totalDist, B.meta.totalDist) / 1000;
+  const xAxis = {
+    type: "linear", min: 0, max: Math.ceil(maxKm * 10) / 10,
+    ticks: { stepSize: 1, color: "#8b93a1", callback: v => v + " km" },
+    grid: { color: "rgba(42,49,60,0.6)" }
+  };
+  const mk = (canvasId, key, arrKey, half, fn, yopts, fmtY) => {
+    cmpCharts[key] = new Chart(document.getElementById(canvasId), {
+      type: "line",
+      data: { datasets: [
+        { type: "line", label: la, data: distPts(A, A.series[arrKey], half, fn), borderColor: "#f0a868", borderWidth: 1.6, pointRadius: 0, tension: 0.15, spanGaps: true },
+        { type: "line", label: lb, data: distPts(B, B.series[arrKey], half, fn), borderColor: "#6aa7e0", borderWidth: 1.6, pointRadius: 0, tension: 0.15, spanGaps: true }
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "nearest", axis: "x", intersect: false },
+        scales: { x: xAxis, y: Object.assign({ grid: { color: "rgba(42,49,60,0.6)" } }, yopts) },
+        plugins: {
+          legend: { labels: { boxWidth: 12 } },
+          tooltip: { callbacks: {
+            title: items => items[0].parsed.x.toFixed(2) + " km",
+            label: c => c.dataset.label + ": " + fmtY(c.parsed.y)
+          } }
+        }
+      }
+    });
+  };
+  Chart.defaults.color = "#8b93a1";
+  safe(() => mk("cmpPace", "pace", "v5", 7, v => { const p = paceMin(v); return p && p < 12 ? p : null; },
+    { reverse: true, min: 4.5, max: 9, ticks: { callback: v => fmtPace(v) } }, v => fmtPace(v) + " /km"), "cmpPace");
+  safe(() => mk("cmpHr", "hr", "hr", 5, null, { title: { display: true, text: "bpm" } }, v => Math.round(v) + " bpm"), "cmpHr");
+  safe(() => mk("cmpCad", "cad", "c5", 7, null, { min: 140, max: 200, title: { display: true, text: "spm" } }, v => Math.round(v) + " spm"), "cmpCad");
+  safe(() => mk("cmpStep", "step", "step", 15, null, { min: 0.7, max: 1.25, title: { display: true, text: "m" } }, v => v.toFixed(3) + " m"), "cmpStep");
+}
+</script>
+</body>
+</html>
